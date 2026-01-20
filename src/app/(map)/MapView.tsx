@@ -327,7 +327,7 @@ function Legend({
       ) : (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 700, fontSize: 11 }}>{title}</div>
+            <div style={{ fontWeight: 700, fontSize: 12, color: '#ffffff' }}>{title}</div>
             <button
               onClick={() => setCollapsed(true)}
               style={{
@@ -353,7 +353,7 @@ function Legend({
                 background: 'linear-gradient(to right, #2ca02c, #ffff00, #ff7f0e, #d62728)',
                 marginBottom: 6,
               }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, opacity: 0.7 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>
                 <span>Thấp / Low</span>
                 <span>Cao / High</span>
               </div>
@@ -371,30 +371,30 @@ function Legend({
                     border: '1px solid rgba(255,255,255,0.2)',
                     flexShrink: 0,
                   }} />
-                  <span style={{ fontSize: 10, opacity: 0.9, lineHeight: 1.3 }}>
+                  <span style={{ fontSize: 11, color: '#ffffff', lineHeight: 1.3 }}>
                     {item.labelVi}
-                    <span style={{ opacity: 0.5, marginLeft: 4, fontSize: 9 }}>({item.labelEn})</span>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 4, fontSize: 9 }}>({item.labelEn})</span>
                   </span>
                 </div>
               ))}
               
               {/* Severity Legend */}
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ fontSize: 9, fontWeight: 600, marginBottom: 6, opacity: 0.7 }}>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 6, color: 'rgba(255,255,255,0.85)' }}>
                   Kích thước = Mức độ / Size = Severity
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#d62728', display: 'inline-block' }} />
-                    <span style={{ fontSize: 9, opacity: 0.7 }}>Nặng</span>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>Nặng</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff7f0e', display: 'inline-block' }} />
-                    <span style={{ fontSize: 9, opacity: 0.7 }}>TB</span>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>TB</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2ca02c', display: 'inline-block' }} />
-                    <span style={{ fontSize: 9, opacity: 0.7 }}>Nhẹ</span>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>Nhẹ</span>
                   </div>
                 </div>
               </div>

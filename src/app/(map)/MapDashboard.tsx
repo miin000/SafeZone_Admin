@@ -280,6 +280,12 @@ export default function MapDashboard() {
           <Link href="/admin/reports" style={{ ...navButtonStyle, borderColor: '#ff9800', color: '#ff9800' }}>
             📋 Báo cáo
           </Link>
+          <Link href="/admin/posts" style={{ ...navButtonStyle, borderColor: '#2196f3', color: '#2196f3' }}>
+            💬 Cộng đồng
+          </Link>
+          <Link href="/admin/health-info" style={{ ...navButtonStyle, borderColor: '#4caf50', color: '#4caf50' }}>
+            📚 Thông tin Y tế
+          </Link>
           <button
             onClick={() => {
               setEditingCaseId(null);

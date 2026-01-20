@@ -215,8 +215,8 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
               </div>
             </div>
 
-            <div style={{ marginTop: 16, borderTop: '1px solid #2a2a2a', paddingTop: 16 }}>
-              <h3 style={{ margin: '0 0 12px 0', fontSize: 14, opacity: 0.9 }}>Thông tin bệnh nhân (Tùy chọn)</h3>
+            <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 20 }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: 14, color: '#475569', fontWeight: 600 }}>Thông tin bệnh nhân (Tùy chọn)</h3>
               
               <div style={gridStyle}>
                 <div style={fieldStyle}>
@@ -297,7 +297,7 @@ const overlayStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   bottom: 0,
-  background: 'rgba(0,0,0,0.7)',
+  background: 'rgba(0,0,0,0.5)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -305,30 +305,31 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-  background: '#0a0a0a',
-  borderRadius: 12,
-  border: '1px solid #2a2a2a',
+  background: '#ffffff',
+  borderRadius: 16,
+  border: '1px solid #e2e8f0',
   width: '100%',
   maxWidth: 520,
   maxHeight: '90vh',
   overflow: 'auto',
+  boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
 };
 
 const headerStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '14px 16px',
-  borderBottom: '1px solid #2a2a2a',
+  padding: '16px 20px',
+  borderBottom: '1px solid #e2e8f0',
+  background: '#f8fafc',
 };
 
 const closeButtonStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'inherit',
+  color: '#64748b',
   fontSize: 24,
   cursor: 'pointer',
-  opacity: 0.7,
   lineHeight: 1,
 };
 
@@ -344,64 +345,64 @@ const fieldStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
-  marginBottom: 4,
-  opacity: 0.8,
+  marginBottom: 6,
+  color: '#475569',
 };
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 10px',
-  borderRadius: 6,
-  border: '1px solid #2a2a2a',
-  background: '#111',
-  color: 'inherit',
-  fontSize: 13,
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#1e293b',
+  fontSize: 14,
 };
 
 const errorStyle: React.CSSProperties = {
-  background: 'rgba(214, 39, 40, 0.2)',
-  border: '1px solid #d62728',
-  borderRadius: 6,
-  padding: 10,
-  marginBottom: 12,
-  color: '#ff6b6b',
-  fontSize: 12,
+  background: 'rgba(239, 68, 68, 0.1)',
+  border: '1px solid #fecaca',
+  borderRadius: 8,
+  padding: 12,
+  marginBottom: 16,
+  color: '#dc2626',
+  fontSize: 13,
 };
 
 const cancelButtonStyle: React.CSSProperties = {
-  padding: '8px 16px',
-  borderRadius: 6,
-  border: '1px solid #2a2a2a',
-  background: 'transparent',
-  color: 'inherit',
-  fontSize: 13,
+  padding: '10px 20px',
+  borderRadius: 8,
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#475569',
+  fontSize: 14,
   cursor: 'pointer',
 };
 
 const submitButtonStyle: React.CSSProperties = {
-  padding: '8px 20px',
-  borderRadius: 6,
+  padding: '10px 24px',
+  borderRadius: 8,
   border: 'none',
-  background: '#1f77b4',
+  background: 'linear-gradient(135deg, #10b981, #059669)',
   color: 'white',
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 600,
   cursor: 'pointer',
 };
 
 const mapPickerButtonStyle: React.CSSProperties = {
   width: '100%',
-  padding: '10px 16px',
-  borderRadius: 6,
-  border: '1px dashed #3a3a3a',
-  background: 'rgba(31, 119, 180, 0.1)',
-  color: '#4dabf7',
-  fontSize: 13,
+  padding: '12px 16px',
+  borderRadius: 8,
+  border: '1px dashed #cbd5e1',
+  background: 'rgba(16, 185, 129, 0.05)',
+  color: '#10b981',
+  fontSize: 14,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 6,
+  gap: 8,
 };

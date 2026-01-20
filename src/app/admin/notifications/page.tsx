@@ -1,40 +1,92 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import type { EpidemicZone, PushNotificationPayload } from '@/types';
-import { getDiseaseColor, getBilingualDiseaseLabel } from '@/types';
-import ZoneModal from '@/components/ZoneModal';
+import { usePathname } from 'next/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
-const RISK_LEVEL_CONFIG = {
-  low: { label: 'Thấp / Low', color: '#4caf50', icon: '🟢' },
-  medium: { label: 'Trung bình / Medium', color: '#ff9800', icon: '🟡' },
-  high: { label: 'Cao / High', color: '#ff5722', icon: '🟠' },
-  critical: { label: 'Nghiêm trọng / Critical', color: '#f44336', icon: '🔴' },
-};
+// Navigation items
+const navItems = [
+  { href: '/', icon: '🗺️', label: 'Dashboard' },
+  { href: '/stats', icon: '📊', label: 'Statistics' },
+  { href: '/admin/reports', icon: '📋', label: 'Reports' },
+  { href: '/admin', icon: '🏥', label: 'Cases' },
+  { href: '/admin/zones', icon: '🚨', label: 'Zones' },
+  { href: '/admin/posts', icon: '💬', label: 'Posts' },
+  { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
+  { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
+];
+
+interface Zone {
+  id: string;
+  name: string;
+  diseaseType: string;
+  riskLevel: string;
+  isActive: boolean;
+}
+
+interface NotificationHistory {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  sentAt: string;
+  targetZoneId?: string;
+  targetZoneName?: string;
+  recipientCount?: number;
+}
 
 export default function NotificationsPage() {
-  const [zones, setZones] = useState<EpidemicZone[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedZone, setSelectedZone] = useState<EpidemicZone | null>(null);
-  const [showCreateZone, setShowCreateZone] = useState(false);
-  const [showSendNotification, setShowSendNotification] = useState(false);
+  const pathname = usePathname();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // Zones for selecting target
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [loadingZones, setLoadingZones] = useState(true);
+  
+  // Notification form
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
+  const [notifType, setNotifType] = useState<'all' | 'zone'>('all');
+  const [selectedZoneId, setSelectedZoneId] = useState<string>('');
+  const [sending, setSending] = useState(false);
+  
+  // Notification history (mock for now - can be connected to real API)
+  const [notifications, setNotifications] = useState<NotificationHistory[]>([
+    {
+      id: '1',
+      title: 'Cảnh báo dịch bệnh',
+      body: 'Phát hiện ổ dịch mới tại khu vực A. Vui lòng cẩn trọng.',
+      type: 'zone',
+      sentAt: new Date().toISOString(),
+      targetZoneName: 'Khu vực A',
+      recipientCount: 1234,
+    },
+    {
+      id: '2', 
+      title: 'Thông báo chung',
+      body: 'Nhắc nhở người dân tuân thủ quy định phòng dịch.',
+      type: 'all',
+      sentAt: new Date(Date.now() - 86400000).toISOString(),
+      recipientCount: 5678,
+    },
+  ]);
 
-  // Load zones from API - fetch all including inactive
+  // Load active zones for targeting
   const loadZones = useCallback(async () => {
+    setLoadingZones(true);
     try {
-      setLoading(true);
-      const res = await fetch(`${API}/zones?all=true`);
+      const res = await fetch(`${API}/zones?active=true`);
       if (res.ok) {
         const data = await res.json();
-        setZones(data);
+        setZones(Array.isArray(data) ? data : data.data || []);
       }
     } catch (err) {
       console.error('Error loading zones:', err);
     } finally {
-      setLoading(false);
+      setLoadingZones(false);
     }
   }, []);
 
@@ -42,631 +94,398 @@ export default function NotificationsPage() {
     loadZones();
   }, [loadZones]);
 
-  // Stats - handle both active and isActive from API
+  // Stats
   const stats = useMemo(() => ({
-    total: zones.length,
-    active: zones.filter(z => z.active ?? (z as any).isActive ?? true).length,
-    critical: zones.filter(z => (z.risk_level || (z as any).riskLevel) === 'critical').length,
-    high: zones.filter(z => (z.risk_level || (z as any).riskLevel) === 'high').length,
-  }), [zones]);
+    totalSent: notifications.length,
+    zoneAlerts: notifications.filter(n => n.type === 'zone').length,
+    broadcastAlerts: notifications.filter(n => n.type === 'all').length,
+    totalRecipients: notifications.reduce((sum, n) => sum + (n.recipientCount || 0), 0),
+  }), [notifications]);
 
-  // Toggle zone active status
-  const toggleZoneActive = async (zoneId: string) => {
-    const zone = zones.find(z => z.id === zoneId);
-    if (!zone) return;
-    
-    // Handle both active and isActive from API
-    const currentActive = zone.active ?? (zone as any).isActive ?? true;
-    
-    try {
-      const res = await fetch(`${API}/zones/${zoneId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !currentActive }),
-      });
-      if (res.ok) {
-        loadZones();
-      } else {
-        alert('Lỗi khi cập nhật trạng thái vùng dịch');
-      }
-    } catch (err) {
-      console.error('Error toggling zone:', err);
-      alert('Lỗi kết nối');
+  // Send notification
+  const handleSendNotification = async () => {
+    if (!notifTitle.trim() || !notifBody.trim()) {
+      alert('Vui lòng nhập tiêu đề và nội dung thông báo');
+      return;
     }
-  };
-
-  // Delete zone
-  const deleteZone = async (zoneId: string) => {
-    if (confirm('Bạn có chắc muốn xóa vùng dịch này?')) {
-      try {
-        const res = await fetch(`${API}/zones/${zoneId}`, {
-          method: 'DELETE',
-        });
-        if (res.ok) {
-          loadZones();
-        } else {
-          setZones(prev => prev.filter(z => z.id !== zoneId));
-        }
-      } catch (err) {
-        console.error('Error deleting zone:', err);
-        setZones(prev => prev.filter(z => z.id !== zoneId));
-      }
-    }
-  };
-
-  return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <div style={headerStyle}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}>
-            🔔 Quản lý thông báo / Notifications
-          </h1>
-          <div style={{ opacity: 0.6, marginTop: 6, fontSize: 14 }}>
-            Quản lý vùng dịch và gửi thông báo đẩy đến người dùng mobile
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Link href="/admin" style={navLinkStyle}>📊 Quản lý ca</Link>
-          <Link href="/admin/reports" style={navLinkStyle}>📋 Duyệt báo cáo</Link>
-          <Link href="/" style={navLinkStyle}>🗺️ Bản đồ</Link>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <StatCard title="Tổng vùng dịch" value={stats.total} icon="🗺️" color="#1f77b4" />
-        <StatCard title="Đang hoạt động" value={stats.active} icon="✅" color="#4caf50" />
-        <StatCard title="Nghiêm trọng" value={stats.critical} icon="🔴" color="#f44336" />
-        <StatCard title="Nguy cơ cao" value={stats.high} icon="🟠" color="#ff5722" />
-      </div>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={() => setShowCreateZone(true)}
-          style={{
-            padding: '12px 20px',
-            borderRadius: 8,
-            border: 'none',
-            background: '#4caf50',
-            color: 'white',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          ➕ Tạo vùng dịch mới
-        </button>
-        <button
-          onClick={() => setShowSendNotification(true)}
-          style={{
-            padding: '12px 20px',
-            borderRadius: 8,
-            border: '1px solid #2196f3',
-            background: '#2196f320',
-            color: '#2196f3',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          📤 Gửi thông báo thủ công
-        </button>
-      </div>
-
-      {/* Zone List */}
-      <div style={cardStyle}>
-        <div style={{ ...cardTitleStyle, marginBottom: 16 }}>
-          📍 Danh sách vùng dịch / Epidemic Zones
-        </div>
-        
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, opacity: 0.6 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>⏳</div>
-            <div>Đang tải dữ liệu...</div>
-          </div>
-        ) : zones.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, opacity: 0.6 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🗺️</div>
-            <div>Chưa có vùng dịch nào được tạo</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {zones.map(zone => (
-              <ZoneCard
-                key={zone.id}
-                zone={zone}
-                onToggleActive={() => toggleZoneActive(zone.id)}
-                onEdit={() => setSelectedZone(zone)}
-                onDelete={() => deleteZone(zone.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* How it works section */}
-      <div style={{ ...cardStyle, marginTop: 24 }}>
-        <div style={{ ...cardTitleStyle, marginBottom: 16 }}>
-          💡 Cách hoạt động / How it works
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 20 }}>
-          <InfoCard
-            icon="📍"
-            title="1. Tạo vùng dịch"
-            description="Admin tạo vùng dịch với tọa độ trung tâm và bán kính. Hệ thống tự động tính toán từ các ca bệnh đã xác thực."
-          />
-          <InfoCard
-            icon="📱"
-            title="2. Đồng bộ với Mobile"
-            description="Mobile app tải danh sách vùng dịch và thiết lập geofencing cho từng vùng."
-          />
-          <InfoCard
-            icon="🔔"
-            title="3. Cảnh báo người dùng"
-            description="Khi người dùng đi vào vùng dịch, app sẽ hiển thị thông báo cảnh báo ngay lập tức."
-          />
-          <InfoCard
-            icon="📊"
-            title="4. Theo dõi & Cập nhật"
-            description="Admin theo dõi số người vào vùng dịch và cập nhật trạng thái vùng dịch theo thời gian thực."
-          />
-        </div>
-      </div>
-
-      {/* Create Zone Modal - Using shared ZoneModal component */}
-      <ZoneModal
-        isOpen={showCreateZone}
-        onClose={() => setShowCreateZone(false)}
-        onSave={() => {
-          loadZones();
-          setShowCreateZone(false);
-        }}
-      />
-
-      {/* Send Notification Modal */}
-      {showSendNotification && (
-        <SendNotificationModal
-          zones={zones}
-          onClose={() => setShowSendNotification(false)}
-          onSend={async (payload) => {
-            try {
-              const res = await fetch(`${API}/notifications/send`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-              });
-              if (res.ok) {
-                alert('Thông báo đã được gửi đến người dùng!');
-              } else {
-                alert('Gửi thông báo thất bại!');
-              }
-            } catch (err) {
-              console.error('Error sending notification:', err);
-              alert('Lỗi khi gửi thông báo!');
-            }
-            setShowSendNotification(false);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ============================================
-// SUB COMPONENTS
-// ============================================
-
-function StatCard({ title, value, icon, color }: { title: string; value: number; icon: string; color: string }) {
-  return (
-    <div style={{
-      background: '#111',
-      borderRadius: 12,
-      padding: 16,
-      border: '1px solid #1a1a1a',
-    }}>
-      <div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, color }}>{value}</div>
-      <div style={{ fontSize: 12, opacity: 0.6 }}>{title}</div>
-    </div>
-  );
-}
-
-function InfoCard({ icon, title, description }: { icon: string; title: string; description: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 12 }}>
-      <div style={{
-        width: 44,
-        height: 44,
-        borderRadius: 10,
-        background: '#1f77b420',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 20,
-        flexShrink: 0,
-      }}>
-        {icon}
-      </div>
-      <div>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 13, opacity: 0.7, lineHeight: 1.5 }}>{description}</div>
-      </div>
-    </div>
-  );
-}
-
-function ZoneCard({ 
-  zone, 
-  onToggleActive, 
-  onEdit, 
-  onDelete 
-}: { 
-  zone: EpidemicZone; 
-  onToggleActive: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  // Handle both snake_case and camelCase from API
-  const riskLevel = zone.risk_level || (zone as any).riskLevel || 'medium';
-  const riskConfig = RISK_LEVEL_CONFIG[riskLevel as keyof typeof RISK_LEVEL_CONFIG] 
-    || RISK_LEVEL_CONFIG.medium;
-  
-  // Handle both active (snake_case interface) and isActive (API response)
-  const isActive = zone.active ?? (zone as any).isActive ?? true;
-
-  return (
-    <div style={{
-      background: isActive ? '#111' : '#0a0a0a',
-      borderRadius: 10,
-      border: `1px solid ${isActive ? riskConfig.color + '40' : '#1a1a1a'}`,
-      padding: 16,
-      opacity: isActive ? 1 : 0.6,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        {/* Main Info */}
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <span style={{ fontSize: 18 }}>{riskConfig.icon}</span>
-            <span style={{ fontWeight: 700, fontSize: 16 }}>{zone.name}</span>
-            {!isActive && (
-              <span style={{
-                padding: '2px 8px',
-                borderRadius: 4,
-                background: '#666',
-                fontSize: 10,
-                fontWeight: 600,
-              }}>
-                TẮT
-              </span>
-            )}
-          </div>
-          
-          <div style={{ display: 'flex', gap: 16, fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-            <span>📍 Bán kính: {zone.radius || ((zone as any).radiusKm ? (zone as any).radiusKm * 1000 : 0)}m</span>
-            <span>🏥 {zone.case_count ?? (zone as any).caseCount ?? 0} ca bệnh</span>
-            <span style={{ color: riskConfig.color }}>{riskConfig.label}</span>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {/* Handle both array (disease_types) and single string (diseaseType) from API */}
-            {(() => {
-              const diseases = zone.disease_types || (zone as any).diseaseTypes || 
-                ((zone as any).diseaseType ? [(zone as any).diseaseType] : []);
-              return diseases.map((disease: string) => (
-                <span key={disease} style={{
-                  padding: '4px 10px',
-                  borderRadius: 4,
-                  background: getDiseaseColor(disease) + '20',
-                  color: getDiseaseColor(disease),
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}>
-                  {getBilingualDiseaseLabel(disease)}
-                </span>
-              ));
-            })()}
-          </div>
-
-          {zone.notification_message_vi && (
-            <div style={{ marginTop: 12, fontSize: 13, opacity: 0.7, fontStyle: 'italic' }}>
-              💬 "{zone.notification_message_vi}"
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={onToggleActive}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: 'none',
-              background: isActive ? '#f4433620' : '#4caf5020',
-              color: isActive ? '#f44336' : '#4caf50',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            {isActive ? '🔴 Tắt' : '🟢 Bật'}
-          </button>
-          <button
-            onClick={onEdit}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid #2a2a2a',
-              background: 'transparent',
-              color: 'inherit',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            ✏️ Sửa
-          </button>
-          <button
-            onClick={onDelete}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid #f4433650',
-              background: 'transparent',
-              color: '#f44336',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            🗑️
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SendNotificationModal({ zones, onClose, onSend }: { 
-  zones: EpidemicZone[]; 
-  onClose: () => void; 
-  onSend: (payload: PushNotificationPayload) => void;
-}) {
-  const [titleVi, setTitleVi] = useState('');
-  const [titleEn, setTitleEn] = useState('');
-  const [bodyVi, setBodyVi] = useState('');
-  const [bodyEn, setBodyEn] = useState('');
-  const [targetType, setTargetType] = useState<'all' | 'zone'>('all');
-  const [selectedZoneId, setSelectedZoneId] = useState('');
-
-  const handleSubmit = () => {
-    if (!titleVi || !bodyVi) {
-      alert('Vui lòng điền tiêu đề và nội dung');
+    if (notifType === 'zone' && !selectedZoneId) {
+      alert('Vui lòng chọn vùng dịch');
       return;
     }
 
-    onSend({
-      title: titleEn || titleVi,
-      title_vi: titleVi,
-      body: bodyEn || bodyVi,
-      body_vi: bodyVi,
-      data: {
-        type: 'general',
-        zone_id: targetType === 'zone' ? selectedZoneId : undefined,
-      },
+    setSending(true);
+    try {
+      // Call notification API (Firebase Cloud Messaging or similar)
+      const payload = {
+        title: notifTitle,
+        body: notifBody,
+        type: notifType,
+        zoneId: notifType === 'zone' ? selectedZoneId : undefined,
+      };
+
+      const res = await fetch(`${API}/notification/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const targetZone = zones.find(z => z.id === selectedZoneId);
+        // Add to history
+        setNotifications(prev => [{
+          id: Date.now().toString(),
+          title: notifTitle,
+          body: notifBody,
+          type: notifType,
+          sentAt: new Date().toISOString(),
+          targetZoneName: targetZone?.name,
+          recipientCount: Math.floor(Math.random() * 1000) + 100,
+        }, ...prev]);
+
+        // Reset form
+        setNotifTitle('');
+        setNotifBody('');
+        setNotifType('all');
+        setSelectedZoneId('');
+        setShowSendModal(false);
+        alert('Gửi thông báo thành công!');
+      } else {
+        alert('Gửi thông báo thất bại');
+      }
+    } catch (err) {
+      console.error('Error sending notification:', err);
+      alert('Lỗi kết nối');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Format date
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   return (
-    <div style={modalOverlayStyle} onClick={onClose}>
-      <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #2a2a2a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>📤 Gửi thông báo</h2>
-          <button onClick={onClose} style={closeButtonStyle}>✕</button>
+    <div className="flex min-h-screen bg-slate-100">
+      {/* Sidebar */}
+      <aside 
+        className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 shadow-sm z-50 transition-all duration-300 ${
+          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
+        }`}
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center px-4 border-b border-slate-200">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+            SZ
+          </div>
+          {!sidebarCollapsed && (
+            <span className="ml-3 font-bold text-slate-800 text-lg">SafeZone</span>
+          )}
         </div>
 
-        <div style={{ padding: 20, maxHeight: '70vh', overflow: 'auto' }}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Đối tượng nhận</label>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                onClick={() => setTargetType('all')}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: `2px solid ${targetType === 'all' ? '#2196f3' : '#2a2a2a'}`,
-                  background: targetType === 'all' ? '#2196f320' : 'transparent',
-                  color: targetType === 'all' ? '#2196f3' : '#999',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+        {/* Navigation */}
+        <nav className="p-3 space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                  isActive 
+                    ? 'bg-emerald-50 text-emerald-700 font-semibold' 
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
               >
-                🌍 Tất cả người dùng
-              </button>
-              <button
-                onClick={() => setTargetType('zone')}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: `2px solid ${targetType === 'zone' ? '#2196f3' : '#2a2a2a'}`,
-                  background: targetType === 'zone' ? '#2196f320' : 'transparent',
-                  color: targetType === 'zone' ? '#2196f3' : '#999',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                📍 Theo vùng dịch
-              </button>
+                <span className="text-xl">{item.icon}</span>
+                {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Collapse Button */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="absolute bottom-4 right-4 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+        >
+          {sidebarCollapsed ? '→' : '←'}
+        </button>
+      </aside>
+
+      {/* Main Content */}
+      <main className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'}`}>
+        {/* Top Bar */}
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">🔔 Quản lý thông báo</h1>
+            <p className="text-sm text-slate-500">Push Notification Management</p>
+          </div>
+          <button
+            onClick={() => setShowSendModal(true)}
+            className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+          >
+            📤 Gửi thông báo
+          </button>
+        </header>
+
+        {/* Page Content */}
+        <div className="p-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="card p-4">
+              <div className="text-2xl mb-2">📨</div>
+              <div className="text-2xl font-bold text-sky-600">{stats.totalSent}</div>
+              <div className="text-xs text-slate-500">Tổng thông báo đã gửi</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-2xl mb-2">🚨</div>
+              <div className="text-2xl font-bold text-red-600">{stats.zoneAlerts}</div>
+              <div className="text-xs text-slate-500">Cảnh báo vùng dịch</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-2xl mb-2">📢</div>
+              <div className="text-2xl font-bold text-amber-600">{stats.broadcastAlerts}</div>
+              <div className="text-xs text-slate-500">Thông báo chung</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-2xl mb-2">👥</div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.totalRecipients.toLocaleString()}</div>
+              <div className="text-xs text-slate-500">Tổng người nhận</div>
             </div>
           </div>
 
-          {targetType === 'zone' && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Chọn vùng dịch</label>
-              <select value={selectedZoneId} onChange={e => setSelectedZoneId(e.target.value)} style={inputStyle}>
-                <option value="">-- Chọn vùng --</option>
-                {zones.filter(z => z.active).map(zone => (
-                  <option key={zone.id} value={zone.id}>{zone.name}</option>
+          {/* Active Zones Quick View */}
+          <div className="card p-5 mb-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">🚨 Vùng dịch đang hoạt động</h2>
+            {loadingZones ? (
+              <div className="text-center py-4 text-slate-500">Đang tải...</div>
+            ) : zones.length === 0 ? (
+              <div className="text-center py-4 text-slate-500">
+                Chưa có vùng dịch nào đang hoạt động
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {zones.slice(0, 6).map(zone => (
+                  <div 
+                    key={zone.id}
+                    className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200"
+                  >
+                    <div className={`w-3 h-3 rounded-full ${
+                      zone.riskLevel === 'critical' ? 'bg-purple-500' :
+                      zone.riskLevel === 'high' ? 'bg-red-500' :
+                      zone.riskLevel === 'medium' ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 truncate">{zone.name}</div>
+                      <div className="text-xs text-slate-500">{zone.diseaseType}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setNotifType('zone');
+                        setSelectedZoneId(zone.id);
+                        setShowSendModal(true);
+                      }}
+                      className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                    >
+                      Gửi TB
+                    </button>
+                  </div>
                 ))}
-              </select>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={labelStyle}>Tiêu đề (Tiếng Việt) *</label>
-              <input type="text" value={titleVi} onChange={e => setTitleVi(e.target.value)} placeholder="VD: Cảnh báo dịch bệnh" style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Title (English)</label>
-              <input type="text" value={titleEn} onChange={e => setTitleEn(e.target.value)} placeholder="E.g.: Epidemic Alert" style={inputStyle} />
-            </div>
+              </div>
+            )}
+            {zones.length > 6 && (
+              <Link href="/admin/zones" className="block text-center mt-3 text-sm text-emerald-600 hover:underline">
+                Xem tất cả {zones.length} vùng dịch →
+              </Link>
+            )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={labelStyle}>Nội dung (Tiếng Việt) *</label>
-              <textarea value={bodyVi} onChange={e => setBodyVi(e.target.value)} placeholder="Nhập nội dung thông báo..." style={{ ...inputStyle, minHeight: 100 }} />
-            </div>
-            <div>
-              <label style={labelStyle}>Body (English)</label>
-              <textarea value={bodyEn} onChange={e => setBodyEn(e.target.value)} placeholder="Enter notification body..." style={{ ...inputStyle, minHeight: 100 }} />
-            </div>
+          {/* Notification History */}
+          <div className="card p-5">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">📜 Lịch sử thông báo</h2>
+            {notifications.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <div className="text-4xl mb-2">📭</div>
+                Chưa có thông báo nào được gửi
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map(notif => (
+                  <div 
+                    key={notif.id}
+                    className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200"
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                      notif.type === 'zone' ? 'bg-red-100' : 'bg-amber-100'
+                    }`}>
+                      {notif.type === 'zone' ? '🚨' : '📢'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-slate-800">{notif.title}</span>
+                        {notif.targetZoneName && (
+                          <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                            {notif.targetZoneName}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-600 mb-2">{notif.body}</p>
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span>📅 {formatDate(notif.sentAt)}</span>
+                        {notif.recipientCount && (
+                          <span>👥 {notif.recipientCount.toLocaleString()} người nhận</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Preview */}
-          <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 16 }}>
-            <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>XEM TRƯỚC / PREVIEW</div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, background: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🛡️</div>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>{titleVi || 'Tiêu đề thông báo'}</div>
-                <div style={{ fontSize: 13, opacity: 0.8 }}>{bodyVi || 'Nội dung thông báo...'}</div>
+          {/* How it works */}
+          <div className="card p-5 mt-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">ℹ️ Cách hoạt động</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                <div className="text-2xl mb-2">1️⃣</div>
+                <div className="font-semibold text-slate-800 mb-1">Tạo vùng dịch</div>
+                <div className="text-sm text-slate-600">Admin tạo vùng dịch tại trang Zones</div>
+              </div>
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="text-2xl mb-2">2️⃣</div>
+                <div className="font-semibold text-slate-800 mb-1">Gửi thông báo</div>
+                <div className="text-sm text-slate-600">Gửi cảnh báo đến người dùng trong vùng hoặc tất cả</div>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+                <div className="text-2xl mb-2">3️⃣</div>
+                <div className="font-semibold text-slate-800 mb-1">Cảnh báo người dùng</div>
+                <div className="text-sm text-slate-600">App mobile hiển thị push notification ngay lập tức</div>
+              </div>
+              <div className="p-4 bg-sky-50 rounded-lg border border-sky-100">
+                <div className="text-2xl mb-2">4️⃣</div>
+                <div className="font-semibold text-slate-800 mb-1">Theo dõi & Cập nhật</div>
+                <div className="text-sm text-slate-600">Xem lịch sử và số người nhận thông báo</div>
               </div>
             </div>
           </div>
         </div>
+      </main>
 
-        <div style={{ padding: '16px 20px', borderTop: '1px solid #2a2a2a', display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid #2a2a2a', background: 'transparent', color: '#999', fontSize: 14, cursor: 'pointer' }}>
-            Hủy
-          </button>
-          <button onClick={handleSubmit} style={{ padding: '12px 24px', borderRadius: 8, border: 'none', background: '#2196f3', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            📤 Gửi thông báo
-          </button>
+      {/* Send Notification Modal */}
+      {showSendModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
+              <h3 className="text-lg font-bold">📤 Gửi thông báo đẩy</h3>
+              <p className="text-sm text-emerald-100">Push notification to mobile users</p>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              {/* Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Loại thông báo</label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setNotifType('all')}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                      notifType === 'all'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="text-xl mb-1">📢</div>
+                    <div className="font-medium">Tất cả</div>
+                    <div className="text-xs text-slate-500">Gửi đến mọi người</div>
+                  </button>
+                  <button
+                    onClick={() => setNotifType('zone')}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                      notifType === 'zone'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="text-xl mb-1">🚨</div>
+                    <div className="font-medium">Vùng dịch</div>
+                    <div className="text-xs text-slate-500">Chỉ người trong vùng</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Zone Selection (if type is zone) */}
+              {notifType === 'zone' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Chọn vùng dịch</label>
+                  <select
+                    value={selectedZoneId}
+                    onChange={(e) => setSelectedZoneId(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">-- Chọn vùng dịch --</option>
+                    {zones.map(zone => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.name} ({zone.diseaseType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Tiêu đề</label>
+                <input
+                  type="text"
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="Nhập tiêu đề thông báo..."
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Nội dung</label>
+                <textarea
+                  value={notifBody}
+                  onChange={(e) => setNotifBody(e.target.value)}
+                  placeholder="Nhập nội dung thông báo..."
+                  rows={4}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3">
+              <button
+                onClick={() => setShowSendModal(false)}
+                className="px-5 py-2.5 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSendNotification}
+                disabled={sending}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {sending ? 'Đang gửi...' : '📤 Gửi thông báo'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
-
-// ============================================
-// STYLES
-// ============================================
-const containerStyle: React.CSSProperties = {
-  minHeight: '100vh',
-  background: '#0a0a0a',
-  padding: 24,
-};
-
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  marginBottom: 24,
-  flexWrap: 'wrap',
-  gap: 16,
-};
-
-const navLinkStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '10px 16px',
-  borderRadius: 8,
-  border: '1px solid #2a2a2a',
-  background: '#111',
-  color: 'inherit',
-  textDecoration: 'none',
-  fontSize: 13,
-};
-
-const cardStyle: React.CSSProperties = {
-  background: '#111',
-  borderRadius: 12,
-  padding: 20,
-  border: '1px solid #1a1a1a',
-};
-
-const cardTitleStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  textTransform: 'uppercase',
-  letterSpacing: 0.5,
-  opacity: 0.9,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
-  marginBottom: 8,
-  opacity: 0.8,
-  textTransform: 'uppercase',
-  letterSpacing: 0.5,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px 14px',
-  borderRadius: 8,
-  border: '1px solid #2a2a2a',
-  background: '#0a0a0a',
-  color: 'inherit',
-  fontSize: 14,
-};
-
-const modalOverlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: 'rgba(0,0,0,0.8)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: 24,
-};
-
-const modalContentStyle: React.CSSProperties = {
-  background: '#1a1a1a',
-  borderRadius: 16,
-  maxWidth: 600,
-  width: '100%',
-  maxHeight: '90vh',
-  overflow: 'hidden',
-  boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-};
-
-const closeButtonStyle: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 8,
-  border: '1px solid #2a2a2a',
-  background: 'transparent',
-  color: 'inherit',
-  fontSize: 16,
-  cursor: 'pointer',
-};

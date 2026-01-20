@@ -84,7 +84,7 @@ export default function MapLayerControl({
             alignItems: 'center',
             marginBottom: 12,
           }}>
-            <span style={{ fontWeight: 700, fontSize: 13 }}>🗂️ Lớp bản đồ</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#ffffff' }}>🗂️ Lớp bản đồ</span>
             <button
               onClick={() => setExpanded(false)}
               style={{
@@ -102,7 +102,7 @@ export default function MapLayerControl({
 
           {/* Display Mode */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
               Chế độ hiển thị
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -118,9 +118,9 @@ export default function MapLayerControl({
                     borderRadius: 6,
                     border: mode === dm.value ? '1px solid #1f77b4' : '1px solid #2a2a2a',
                     background: mode === dm.value ? '#1f77b420' : 'transparent',
-                    color: 'inherit',
+                    color: '#ffffff',
                     cursor: 'pointer',
-                    fontSize: 11,
+                    fontSize: 12,
                     textAlign: 'left',
                   }}
                 >
@@ -134,7 +134,7 @@ export default function MapLayerControl({
 
           {/* Base Map Selection */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
               Bản đồ nền
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -150,7 +150,7 @@ export default function MapLayerControl({
                       borderRadius: 6,
                       border: config.baseMap === bm.value ? '1px solid #1f77b4' : '1px solid #2a2a2a',
                       background: config.baseMap === bm.value ? '#1f77b420' : 'transparent',
-                      color: 'inherit',
+                      color: '#ffffff',
                       cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
@@ -160,7 +160,7 @@ export default function MapLayerControl({
                     title={mapConfig.nameVi}
                   >
                     <span style={{ fontSize: 16 }}>{bm.icon}</span>
-                    <span style={{ fontSize: 9, opacity: 0.7 }}>{mapConfig.nameVi}</span>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>{mapConfig.nameVi}</span>
                   </button>
                 );
               })}
@@ -169,7 +169,7 @@ export default function MapLayerControl({
 
           {/* Layer Toggles */}
           <div>
-            <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
               Hiển thị lớp
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -190,7 +190,7 @@ export default function MapLayerControl({
 
           {/* Zone Layer Toggle - Separate section */}
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>
               🚨 Vùng dịch bệnh
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -208,8 +208,8 @@ export default function MapLayerControl({
             marginTop: 12,
             paddingTop: 12,
             borderTop: '1px solid #2a2a2a',
-            fontSize: 10,
-            opacity: 0.5,
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.6)',
           }}>
             💡 Dùng scroll để zoom, kéo để di chuyển
           </div>
@@ -242,7 +242,7 @@ function LayerToggle({
       background: checked ? '#1f77b410' : 'transparent',
     }}>
       <span style={{ fontSize: 12 }}>{icon}</span>
-      <span style={{ flex: 1, fontSize: 11 }}>{label}</span>
+      <span style={{ flex: 1, fontSize: 12, color: '#ffffff' }}>{label}</span>
       <div
         style={{
           width: 36,

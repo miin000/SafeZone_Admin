@@ -411,20 +411,20 @@ export default function ZoneModal({
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0,0,0,0.9)',
+            background: 'rgba(0,0,0,0.7)',
             zIndex: 10001,
             display: 'flex',
             flexDirection: 'column',
           }}>
             <div style={{
               padding: '16px 20px',
-              background: '#111',
-              borderBottom: '1px solid #2a2a2a',
+              background: '#ffffff',
+              borderBottom: '1px solid #e2e8f0',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
                 🗺️ Chọn vị trí trên bản đồ / Select location on map
               </h3>
               <button
@@ -458,7 +458,7 @@ const overlayStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   bottom: 0,
-  background: 'rgba(0, 0, 0, 0.8)',
+  background: 'rgba(0, 0, 0, 0.5)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -467,32 +467,32 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const modalStyle: React.CSSProperties = {
-  background: '#161b22',
+  background: '#ffffff',
   borderRadius: 16,
   width: '100%',
   maxWidth: 520,
   maxHeight: '90vh',
   overflow: 'hidden',
-  border: '1px solid #30363d',
-  boxShadow: '0 16px 70px rgba(0,0,0,0.5)',
+  border: '1px solid #e2e8f0',
+  boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
 };
 
 const headerStyle: React.CSSProperties = {
   padding: '16px 20px',
-  borderBottom: '1px solid #21262d',
+  borderBottom: '1px solid #e2e8f0',
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  background: '#0d1117',
+  background: '#f8fafc',
 };
 
 const closeButtonStyle: React.CSSProperties = {
   width: 32,
   height: 32,
   borderRadius: 8,
-  border: '1px solid #30363d',
-  background: 'transparent',
-  color: '#8b949e',
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#64748b',
   fontSize: 14,
   cursor: 'pointer',
   display: 'flex',
@@ -502,11 +502,11 @@ const closeButtonStyle: React.CSSProperties = {
 
 const footerStyle: React.CSSProperties = {
   padding: '16px 20px',
-  borderTop: '1px solid #21262d',
+  borderTop: '1px solid #e2e8f0',
   display: 'flex',
   justifyContent: 'flex-end',
   gap: 12,
-  background: '#0d1117',
+  background: '#f8fafc',
 };
 
 const fieldStyle: React.CSSProperties = {
@@ -518,25 +518,25 @@ const labelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   marginBottom: 6,
-  color: '#c9d1d9',
+  color: '#475569',
 };
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
   borderRadius: 8,
-  border: '1px solid #30363d',
-  background: '#0d1117',
-  color: '#c9d1d9',
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#1e293b',
   fontSize: 14,
 };
 
 const cancelButtonStyle: React.CSSProperties = {
   padding: '10px 20px',
   borderRadius: 8,
-  border: '1px solid #30363d',
-  background: 'transparent',
-  color: '#8b949e',
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#475569',
   fontSize: 14,
   cursor: 'pointer',
 };
@@ -545,7 +545,7 @@ const submitButtonStyle: React.CSSProperties = {
   padding: '10px 24px',
   borderRadius: 8,
   border: 'none',
-  background: '#238636',
+  background: 'linear-gradient(135deg, #10b981, #059669)',
   color: 'white',
   fontSize: 14,
   fontWeight: 600,

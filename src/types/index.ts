@@ -129,6 +129,24 @@ export const VERIFICATION_STATUS_CONFIG: Record<VerificationStatus, {
   invalid: { label: 'Invalid', labelVi: 'Không hợp lệ', color: '#f44336', icon: '✗' },
 };
 
+/** Patient information for detailed case reports */
+export interface PatientInfo {
+  fullName?: string;
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+  idNumber?: string;
+  phone?: string;
+  address?: string;
+  occupation?: string;
+  workplace?: string;
+  symptomOnsetDate?: string;
+  healthFacility?: string;
+  isHospitalized?: boolean;
+  travelHistory?: string;
+  contactHistory?: string;
+  underlyingConditions?: string[];
+}
+
 /** Report from mobile app */
 export interface Report {
   id: string;
@@ -138,12 +156,16 @@ export interface Report {
   reporter_phone?: string;
   reporter_email?: string;
   
-  // Location
+  // Case/incident location (where the case occurred)
   lat: number;
   lon: number;
   address?: string;
   region_id?: number;
   region_name?: string;
+  
+  // Reporter's location when submitting (where the reporter is)
+  reporter_lat?: number;
+  reporter_lon?: number;
   
   // Report content
   disease_type: string;
@@ -151,6 +173,10 @@ export interface Report {
   symptoms?: string[];
   affected_count?: number;
   images?: string[];
+  
+  // Detailed report fields
+  is_detailed_report?: boolean;
+  patient_info?: PatientInfo;
   
   // Timestamps
   created_at: string;
@@ -682,6 +708,212 @@ export function formatDateRange(from?: string, to?: string): string {
 }
 
 // ============================================
+// HEALTH INFO TYPES
+// ============================================
+
+export type HealthInfoCategory = 
+  | 'disease_prevention'
+  | 'vaccination'
+  | 'community_health'
+  | 'medical_guidance'
+  | 'news';
+
+export type HealthInfoStatus = 'draft' | 'published' | 'archived';
+
+export const HEALTH_INFO_CATEGORY_CONFIG: Record<HealthInfoCategory, {
+  label: string;
+  labelVi: string;
+  icon: string;
+  color: string;
+}> = {
+  disease_prevention: {
+    label: 'Disease Prevention',
+    labelVi: 'Phòng chống dịch bệnh',
+    icon: '🦠',
+    color: '#e53935',
+  },
+  vaccination: {
+    label: 'Vaccination',
+    labelVi: 'Tiêm chủng',
+    icon: '💉',
+    color: '#1e88e5',
+  },
+  community_health: {
+    label: 'Community Health',
+    labelVi: 'Sức khỏe cộng đồng',
+    icon: '👨‍👩‍👧‍👦',
+    color: '#43a047',
+  },
+  medical_guidance: {
+    label: 'Medical Guidance',
+    labelVi: 'Hướng dẫn y tế',
+    icon: '📋',
+    color: '#fb8c00',
+  },
+  news: {
+    label: 'News',
+    labelVi: 'Tin tức',
+    icon: '📰',
+    color: '#8e24aa',
+  },
+};
+
+export const HEALTH_INFO_STATUS_CONFIG: Record<HealthInfoStatus, {
+  label: string;
+  labelVi: string;
+  color: string;
+  bgColor: string;
+}> = {
+  draft: {
+    label: 'Draft',
+    labelVi: 'Bản nháp',
+    color: '#757575',
+    bgColor: '#75757520',
+  },
+  published: {
+    label: 'Published',
+    labelVi: 'Đã xuất bản',
+    color: '#4caf50',
+    bgColor: '#4caf5020',
+  },
+  archived: {
+    label: 'Archived',
+    labelVi: 'Đã lưu trữ',
+    color: '#ff9800',
+    bgColor: '#ff980020',
+  },
+};
+
+export interface HealthInfo {
+  id: string;
+  title: string;
+  content: string;
+  summary?: string;
+  category: HealthInfoCategory;
+  status: HealthInfoStatus;
+  thumbnailUrl?: string;
+  imageUrls?: string[];
+  tags?: string[];
+  viewCount: number;
+  isFeatured: boolean;
+  sourceUrl?: string;
+  sourceName?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  author?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface HealthInfoFormData {
+  title: string;
+  content: string;
+  summary?: string;
+  category: HealthInfoCategory;
+  thumbnailUrl?: string;
+  imageUrls?: string[];
+  tags?: string[];
+  isFeatured?: boolean;
+  sourceUrl?: string;
+  sourceName?: string;
+}
+
+export interface HealthInfoListResponse {
+  items: HealthInfo[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export interface HealthInfoStats {
+  total: number;
+  published: number;
+  draft: number;
+  archived: number;
+  byCategory: Array<{
+    category: HealthInfoCategory;
+    count: number;
+  }>;
+}
+
+// ============================================
+// POST/COMMUNITY TYPES
+// ============================================
+
+export type PostStatus = 'pending' | 'approved' | 'rejected';
+
+export const POST_STATUS_CONFIG: Record<PostStatus, {
+  label: string;
+  labelVi: string;
+  color: string;
+  bgColor: string;
+  icon: string;
+}> = {
+  pending: {
+    label: 'Pending',
+    labelVi: 'Chờ duyệt',
+    color: '#ff9800',
+    bgColor: '#ff980020',
+    icon: '⏳',
+  },
+  approved: {
+    label: 'Approved',
+    labelVi: 'Đã duyệt',
+    color: '#4caf50',
+    bgColor: '#4caf5020',
+    icon: '✅',
+  },
+  rejected: {
+    label: 'Rejected',
+    labelVi: 'Từ chối',
+    color: '#f44336',
+    bgColor: '#f4433620',
+    icon: '❌',
+  },
+};
+
+export interface Post {
+  id: string;
+  content: string;
+  imageUrls?: string[];
+  location?: string;
+  diseaseType?: string;
+  helpfulCount: number;
+  notHelpfulCount: number;
+  status: PostStatus;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+}
+
+export interface PostListResponse {
+  data: Post[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface PostStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+// ============================================
 // BASE MAP CONFIGURATIONS
 // ============================================
 
@@ -716,3 +948,4 @@ export const BASE_MAP_CONFIGS: Record<BaseMapStyle, {
     nameVi: 'Vệ tinh',
   },
 };
+
