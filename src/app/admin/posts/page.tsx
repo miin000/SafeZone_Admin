@@ -18,6 +18,8 @@ const navItems = [
   { href: '/admin/posts', icon: '💬', label: 'Posts' },
   { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
   { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
+  { href: '/admin/users', icon: '👥', label: 'Users' },
+  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
 ];
 
 export default function PostsPage() {
@@ -60,6 +62,10 @@ export default function PostsPage() {
   // Load posts
   const loadData = useCallback(() => {
     const sp = new URLSearchParams();
+    
+    // Always show all posts for admin (including pending)
+    sp.set('showAll', 'true');
+    
     if (status !== 'ALL') sp.set('status', status);
     sp.set('page', String(page));
     sp.set('limit', String(limit));

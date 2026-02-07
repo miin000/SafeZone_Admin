@@ -173,6 +173,8 @@ const navItems = [
   { href: '/admin/posts', icon: '💬', label: 'Posts' },
   { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
   { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
+  { href: '/admin/users', icon: '👥', label: 'Users' },
+  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
 ];
 
 export default function ReportsPage() {
@@ -203,7 +205,12 @@ export default function ReportsPage() {
       if (priorityFilter !== 'ALL') params.set('priority', priorityFilter);
       if (searchQuery) params.set('search', searchQuery);
 
-      const res = await fetch(`${API}/reports?${params.toString()}`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/reports?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (res.ok) {
         const data = await res.json();
         const rawReports = data.data || data || [];
@@ -211,7 +218,7 @@ export default function ReportsPage() {
         const transformedReports = rawReports.map(transformApiReport);
         setReports(transformedReports);
       } else {
-        console.error('Failed to fetch reports');
+        console.error('Failed to fetch reports:', res.status);
         setReports([]);
       }
     } catch (err) {
@@ -272,11 +279,16 @@ export default function ReportsPage() {
       // Map frontend status to API status
       const apiStatus = payload.report_status === 'approved' ? 'verified' : 
                         payload.report_status === 'rejected' ? 'rejected' : 
+                        payload.report_status === 'in_review' ? 'pending' :
                         payload.report_status === 'pending' ? 'pending' : 'pending';
       
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API}/reports/${report.id}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           status: apiStatus,
           adminNote: payload.review_notes || payload.verification_notes,
@@ -286,25 +298,17 @@ export default function ReportsPage() {
       });
       
       if (res.ok) {
-        loadReports();
+        // Successfully updated - reload from server
+        await loadReports();
+        alert('✅ Cập nhật báo cáo thành công!');
       } else {
-        setReports(prev => prev.map(r => 
-          r.id === report.id 
-            ? {
-                ...r,
-                report_status: payload.report_status,
-                review_notes: payload.review_notes,
-                verification_status: payload.verification_status || r.verification_status,
-                verification_notes: payload.verification_notes,
-                reviewed_by: 'Admin',
-                reviewed_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }
-            : r
-        ));
+        const errorText = await res.text();
+        console.error('Failed to update report status:', res.status, errorText);
+        alert(`❌ Không thể cập nhật báo cáo: ${res.status === 401 ? 'Phiên đăng nhập hết hạn' : 'Lỗi server'}`);
       }
     } catch (err) {
       console.error('Error reviewing report:', err);
+      alert('❌ Lỗi khi cập nhật báo cáo');
     }
     setReviewModalOpen(false);
     setSelectedReport(null);

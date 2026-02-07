@@ -27,12 +27,12 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
         <div style={sectionStyle}>
           <div style={rowStyle}>
             <span style={labelStyle}>ID</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 11 }}>#{caseData.id}</span>
+            <span style={{ fontSize: 11, color: '#ffffff' }}>#{caseData.id}</span>
           </div>
           {caseData.external_id && (
             <div style={rowStyle}>
               <span style={labelStyle}>Mã ngoài</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{caseData.external_id}</span>
+              <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.external_id}</span>
             </div>
           )}
         </div>
@@ -41,7 +41,7 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
           <div style={sectionTitleStyle}>Thông tin bệnh</div>
           <div style={rowStyle}>
             <span style={labelStyle}>Loại bệnh</span>
-            <span style={{ fontWeight: 700, fontSize: 11 }}>{caseData.disease_type}</span>
+            <span style={{ fontWeight: 700, fontSize: 11, color: '#ffffff' }}>{caseData.disease_type}</span>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Trạng thái</span>
@@ -72,7 +72,7 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Ngày báo cáo</span>
-            <span style={{ fontSize: 11 }}>{new Date(caseData.reported_time).toLocaleDateString('vi-VN')}</span>
+            <span style={{ fontSize: 11, color: '#ffffff' }}>{new Date(caseData.reported_time).toLocaleDateString('vi-VN')}</span>
           </div>
         </div>
 
@@ -80,11 +80,11 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
           <div style={sectionTitleStyle}>Vị trí</div>
           <div style={rowStyle}>
             <span style={labelStyle}>Vùng</span>
-            <span style={{ fontSize: 11 }}>{caseData.region_name || `ID: ${caseData.region_id || '-'}`}</span>
+            <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.region_name || `ID: ${caseData.region_id || '-'}`}</span>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Tọa độ</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 10 }}>
+            <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.85)' }}>
               {caseData.lat.toFixed(4)}, {caseData.lon.toFixed(4)}
             </span>
           </div>
@@ -96,19 +96,19 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
             {caseData.patient_name && (
               <div style={rowStyle}>
                 <span style={labelStyle}>Tên</span>
-                <span style={{ fontSize: 11 }}>{caseData.patient_name}</span>
+                <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.patient_name}</span>
               </div>
             )}
             {caseData.patient_age && (
               <div style={rowStyle}>
                 <span style={labelStyle}>Tuổi</span>
-                <span style={{ fontSize: 11 }}>{caseData.patient_age}</span>
+                <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.patient_age}</span>
               </div>
             )}
             {caseData.patient_gender && (
               <div style={rowStyle}>
                 <span style={labelStyle}>Giới tính</span>
-                <span style={{ fontSize: 11 }}>{caseData.patient_gender}</span>
+                <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.patient_gender}</span>
               </div>
             )}
           </div>
@@ -117,7 +117,7 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
         {caseData.notes && (
           <div style={{ ...sectionStyle, borderBottom: 'none' }}>
             <div style={sectionTitleStyle}>Ghi chú</div>
-            <p style={{ margin: 0, opacity: 0.85, fontSize: 11, lineHeight: 1.4 }}>
+            <p style={{ margin: 0, color: 'rgba(255, 255, 255, 0.9)', fontSize: 11, lineHeight: 1.4 }}>
               {caseData.notes}
             </p>
           </div>
@@ -139,13 +139,15 @@ const panelStyle: React.CSSProperties = {
   top: 70,
   width: 280,
   maxHeight: 'calc(100% - 90px)',
-  background: 'rgba(10, 10, 10, 0.95)',
+  background: 'rgba(15, 15, 25, 0.98)',
   borderRadius: 10,
-  border: '1px solid #2a2a2a',
+  border: '1px solid rgba(255, 255, 255, 0.15)',
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
   zIndex: 1001,
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
+  color: '#ffffff',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -153,17 +155,19 @@ const headerStyle: React.CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '10px 14px',
-  borderBottom: '1px solid #2a2a2a',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  background: 'rgba(255, 255, 255, 0.05)',
 };
 
 const closeButtonStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'inherit',
+  color: '#ffffff',
   fontSize: 20,
   cursor: 'pointer',
-  opacity: 0.7,
+  opacity: 0.9,
   lineHeight: 1,
+  transition: 'opacity 0.2s',
 };
 
 const contentStyle: React.CSSProperties = {
@@ -175,7 +179,7 @@ const contentStyle: React.CSSProperties = {
 const sectionStyle: React.CSSProperties = {
   marginBottom: 14,
   paddingBottom: 14,
-  borderBottom: '1px solid #1a1a1a',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -183,7 +187,7 @@ const sectionTitleStyle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: 0.5,
-  opacity: 0.6,
+  color: 'rgba(255, 255, 255, 0.7)',
   marginBottom: 10,
 };
 
@@ -196,22 +200,25 @@ const rowStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  opacity: 0.7,
+  color: 'rgba(255, 255, 255, 0.75)',
+  fontWeight: 500,
 };
 
 const footerStyle: React.CSSProperties = {
   padding: 10,
-  borderTop: '1px solid #2a2a2a',
+  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+  background: 'rgba(255, 255, 255, 0.03)',
 };
 
 const editButtonStyle: React.CSSProperties = {
   width: '100%',
   padding: '8px 14px',
   borderRadius: 6,
-  border: '1px solid #1f77b4',
-  background: 'transparent',
-  color: '#1f77b4',
+  border: '1px solid #3b82f6',
+  background: 'rgba(59, 130, 246, 0.1)',
+  color: '#60a5fa',
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
+  transition: 'all 0.2s',
 };

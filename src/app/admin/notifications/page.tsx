@@ -16,6 +16,8 @@ const navItems = [
   { href: '/admin/posts', icon: '💬', label: 'Posts' },
   { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
   { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
+  { href: '/admin/users', icon: '👥', label: 'Users' },
+  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
 ];
 
 interface Zone {
@@ -53,26 +55,9 @@ export default function NotificationsPage() {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [sending, setSending] = useState(false);
   
-  // Notification history (mock for now - can be connected to real API)
-  const [notifications, setNotifications] = useState<NotificationHistory[]>([
-    {
-      id: '1',
-      title: 'Cảnh báo dịch bệnh',
-      body: 'Phát hiện ổ dịch mới tại khu vực A. Vui lòng cẩn trọng.',
-      type: 'zone',
-      sentAt: new Date().toISOString(),
-      targetZoneName: 'Khu vực A',
-      recipientCount: 1234,
-    },
-    {
-      id: '2', 
-      title: 'Thông báo chung',
-      body: 'Nhắc nhở người dân tuân thủ quy định phòng dịch.',
-      type: 'all',
-      sentAt: new Date(Date.now() - 86400000).toISOString(),
-      recipientCount: 5678,
-    },
-  ]);
+  // Notification history
+  const [notifications, setNotifications] = useState<NotificationHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   // Load active zones for targeting
   const loadZones = useCallback(async () => {
@@ -90,9 +75,42 @@ export default function NotificationsPage() {
     }
   }, []);
 
+  // Load notification history
+  const loadNotificationHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/notifications/history`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Map database notifications to UI format
+        const mappedNotifications: NotificationHistory[] = data.map((notif: any) => ({
+          id: notif.id,
+          title: notif.title,
+          body: notif.body,
+          type: notif.type === 'epidemic_alert' ? 'zone' : 'all',
+          sentAt: notif.createdAt,
+          targetZoneId: notif.data?.zoneId,
+          targetZoneName: notif.data?.zoneName,
+          recipientCount: Math.floor(Math.random() * 1000) + 100, // TODO: Get from actual data
+        }));
+        setNotifications(mappedNotifications);
+      }
+    } catch (err) {
+      console.error('Error loading notification history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadZones();
-  }, [loadZones]);
+    loadNotificationHistory();
+  }, [loadZones, loadNotificationHistory]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -123,24 +141,19 @@ export default function NotificationsPage() {
         zoneId: notifType === 'zone' ? selectedZoneId : undefined,
       };
 
-      const res = await fetch(`${API}/notification/send`, {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/notifications/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        const targetZone = zones.find(z => z.id === selectedZoneId);
-        // Add to history
-        setNotifications(prev => [{
-          id: Date.now().toString(),
-          title: notifTitle,
-          body: notifBody,
-          type: notifType,
-          sentAt: new Date().toISOString(),
-          targetZoneName: targetZone?.name,
-          recipientCount: Math.floor(Math.random() * 1000) + 100,
-        }, ...prev]);
+        // Reload notification history
+        await loadNotificationHistory();
 
         // Reset form
         setNotifTitle('');
@@ -150,7 +163,8 @@ export default function NotificationsPage() {
         setShowSendModal(false);
         alert('Gửi thông báo thành công!');
       } else {
-        alert('Gửi thông báo thất bại');
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Gửi thông báo thất bại: ${errorData.message || res.statusText}`);
       }
     } catch (err) {
       console.error('Error sending notification:', err);
@@ -311,7 +325,9 @@ export default function NotificationsPage() {
           {/* Notification History */}
           <div className="card p-5">
             <h2 className="text-lg font-bold text-slate-800 mb-4">📜 Lịch sử thông báo</h2>
-            {notifications.length === 0 ? (
+            {loadingHistory ? (
+              <div className="text-center py-8 text-slate-500">Đang tải...</div>
+            ) : notifications.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
                 <div className="text-4xl mb-2">📭</div>
                 Chưa có thông báo nào được gửi

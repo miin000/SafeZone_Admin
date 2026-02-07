@@ -245,6 +245,86 @@ export function getBilingualVerificationStatus(status: VerificationStatus): stri
 }
 
 // ============================================
+// POST TYPES (Community Posts)
+// ============================================
+
+export type PostStatus = 'pending' | 'approved' | 'rejected';
+
+export interface User {
+  id: string;
+  name: string;
+  email?: string;
+  phone: string;
+  role: 'user' | 'healthWorker' | 'admin';
+  avatarUrl?: string;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
+}
+
+export interface Post {
+  id: string;
+  content: string;
+  imageUrls?: string[];
+  status: PostStatus;
+  helpfulCount: number;
+  notHelpfulCount: number;
+  location?: string;
+  diseaseType?: string;
+  adminNote?: string;
+  user?: User;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PostListResponse {
+  data: Post[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface PostStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+export const POST_STATUS_CONFIG: Record<PostStatus, {
+  label: string;
+  labelVi: string;
+  color: string;
+  icon: string;
+  bgColor: string;
+}> = {
+  pending: {
+    label: 'Pending',
+    labelVi: 'Chờ duyệt',
+    color: '#ff9800',
+    icon: '⏳',
+    bgColor: '#ff980020',
+  },
+  approved: {
+    label: 'Approved',
+    labelVi: 'Đã duyệt',
+    color: '#4caf50',
+    icon: '✅',
+    bgColor: '#4caf5020',
+  },
+  rejected: {
+    label: 'Rejected',
+    labelVi: 'Từ chối',
+    color: '#f44336',
+    icon: '❌',
+    bgColor: '#f4433620',
+  },
+};
+
+// ============================================
 // NOTIFICATION TYPES (for mobile push)
 // ============================================
 
@@ -354,7 +434,8 @@ export interface Stats {
 
 export type DisplayMode = 
   | 'points_disease' 
-  | 'points_status' 
+  | 'points_status'
+  | 'points_severity'
   | 'heatmap' 
   | 'grid_density' 
   | 'clusters';

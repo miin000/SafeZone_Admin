@@ -16,11 +16,14 @@ interface CaseModalProps {
   onSave: () => void;
 }
 
+const API = process.env.NEXT_PUBLIC_API_URL!;
+
 export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave }: CaseModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationFetching, setLocationFetching] = useState(false);
   const [formData, setFormData] = useState<CaseFormData>({
     disease_type: 'Dengue',
     status: 'suspected',
@@ -33,6 +36,36 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
     patient_gender: '',
     notes: '',
   });
+
+  // Normalize gender value to match select options
+  const normalizeGender = (gender: string | undefined): string => {
+    if (!gender) return '';
+    const lower = gender.toLowerCase();
+    if (lower === 'male' || lower === 'nam') return 'male';
+    if (lower === 'female' || lower === 'nữ' || lower === 'nu') return 'female';
+    if (lower === 'other' || lower === 'khác' || lower === 'khac') return 'other';
+    return gender;
+  };
+
+  // Auto-detect region from lat/lon
+  useEffect(() => {
+    if (!isOpen || !formData.lat || !formData.lon) return;
+    
+    const timeoutId = setTimeout(() => {
+      setLocationFetching(true);
+      fetch(`${API}/gis/reverse-geocode?lat=${formData.lat}&lon=${formData.lon}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.regionId) {
+            setFormData(prev => ({ ...prev, region_id: data.regionId }));
+          }
+        })
+        .catch(err => console.error('Failed to fetch region:', err))
+        .finally(() => setLocationFetching(false));
+    }, 500); // Debounce 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.lat, formData.lon, isOpen]);
 
   useEffect(() => {
     if (isOpen && caseId) {
@@ -49,7 +82,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
             region_id: c.region_id,
             patient_name: c.patient_name || '',
             patient_age: c.patient_age,
-            patient_gender: c.patient_gender || '',
+            patient_gender: normalizeGender(c.patient_gender),
             notes: c.notes || '',
           });
         })
@@ -63,9 +96,10 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
         reported_time: initialData.reported_time?.slice(0, 16) || new Date().toISOString().slice(0, 16),
         lat: initialData.lat || 21.0278,
         lon: initialData.lon || 105.8342,
+        region_id: initialData.region_id,
         patient_name: initialData.patient_name || '',
         patient_age: initialData.patient_age,
-        patient_gender: initialData.patient_gender || '',
+        patient_gender: normalizeGender(initialData.patient_gender),
         notes: initialData.notes || '',
       });
     } else if (isOpen) {
@@ -164,7 +198,9 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
                   required
                 >
                   {SEVERITY_LEVELS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
+                    <option key={s.value} value={s.value}>
+                      {s.emoji} {s.labelVi} / {s.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -203,6 +239,12 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
                   required
                 />
               </div>
+
+              {locationFetching && (
+                <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>
+                  🔍 Đang xác định khu vực...
+                </div>
+              )}
 
               <div style={{ gridColumn: '1 / -1' }}>
                 <button
@@ -249,9 +291,9 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
                     style={inputStyle}
                   >
                     <option value="">Chọn</option>
-                    <option value="Male">Nam</option>
-                    <option value="Female">Nữ</option>
-                    <option value="Other">Khác</option>
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                    <option value="other">Khác</option>
                   </select>
                 </div>
               </div>

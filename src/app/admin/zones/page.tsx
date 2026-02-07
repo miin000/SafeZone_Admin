@@ -17,6 +17,8 @@ const navItems = [
   { href: '/admin/posts', icon: '💬', label: 'Posts' },
   { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
   { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
+  { href: '/admin/users', icon: '👥', label: 'Users' },
+  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
 ];
 
 // Risk level configurations

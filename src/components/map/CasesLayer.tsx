@@ -42,9 +42,12 @@ export default function CasesLayer({
   }, [onCaseSelect]);
 
   // Get color based on mode
-  const getColor = useCallback((diseaseType: string, status: string) => {
+  const getColor = useCallback((diseaseType: string, status: string, severity: number) => {
     if (mode === 'points_disease') {
       return getDiseaseColor(diseaseType);
+    }
+    if (mode === 'points_severity') {
+      return getSeverityColor(severity);
     }
     return getStatusColor(status);
   }, [mode]);
@@ -129,7 +132,7 @@ export default function CasesLayer({
       let weight = 2;
       
       // Color based on mode
-      const color = getColor(p.disease_type, p.status);
+      const color = getColor(p.disease_type, p.status, sev);
       
       if (mode === 'points_disease' && sev >= 3) {
         fillOpacity = 0.95;
