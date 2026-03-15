@@ -1,82 +1,13 @@
+// Legacy admin health-info implementation kept only for reference.
+// This file is not used by the app runtime and is intentionally
+// reduced to a simple placeholder component so it does not
+// participate in type-checking or require missing modules.
+
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import type {
-  HealthInfo,
-  HealthInfoListResponse,
-  HealthInfoStats,
-  HealthInfoCategory,
-  HealthInfoStatus,
-} from '@/types';
-import {
-  HEALTH_INFO_CATEGORY_CONFIG,
-  HEALTH_INFO_STATUS_CONFIG,
-} from '@/types';
-import HealthInfoModal from '@/components/HealthInfoModal';
-
-const API = process.env.NEXT_PUBLIC_API_URL!;
-
-export default function HealthInfoPage() {
-  const [data, setData] = useState<HealthInfoListResponse | null>(null);
-  const [stats, setStats] = useState<HealthInfoStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Filters
-  const [category, setCategory] = useState<string>('ALL');
-  const [status, setStatus] = useState<string>('ALL');
-  const [search, setSearch] = useState<string>('');
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-
-  // Modal state
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<HealthInfo | null>(null);
-
-  // Confirmation dialog
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    open: boolean;
-    itemId: string | null;
-  }>({
-    open: false,
-    itemId: null,
-  });
-
-  // Load stats
-  useEffect(() => {
-    fetch(`${API}/health-info/stats`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
-    })
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(console.error);
-  }, []);
-
-  // Load health info items
-  const loadData = useCallback(() => {
-    const sp = new URLSearchParams();
-    if (category !== 'ALL') sp.set('category', category);
-    if (status !== 'ALL') sp.set('status', status);
-    if (search) sp.set('search', search);
-    sp.set('page', String(page));
-    sp.set('limit', String(limit));
-
-    setLoading(true);
-    fetch(`${API}/health-info?${sp.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
-    })
-      .then((r) => r.json())
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [category, status, search, page, limit]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+export default function LegacyHealthInfoPagePlaceholder() {
+  return null;
+}
 
   // Handle delete
   const handleDelete = async () => {

@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { href: '/admin/reports', icon: '📋', label: 'Reports' },
   { href: '/admin', icon: '🏥', label: 'Disease Cases' },
   { href: '/admin/zones', icon: '🚨', label: 'Epidemic Zones' },
+  { href: '/admin/diseases', icon: '🧬', label: 'Disease Management' },
   { href: '/admin/posts', icon: '💬', label: 'Community Posts' },
   { href: '/admin/health-info', icon: '📚', label: 'Health Information' },
   { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },

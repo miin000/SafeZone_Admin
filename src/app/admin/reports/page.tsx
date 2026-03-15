@@ -2,23 +2,35 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
 import type { 
   Report, 
   ReportStatus, 
-  VerificationStatus,
-  ReportReviewPayload,
+  ReportStatusHistory,
+  PreliminaryResult,
+  FieldVerificationResult,
+  OfficialClassification,
+  ClosureAction,
 } from '@/types';
 import { 
   REPORT_STATUS_CONFIG, 
-  VERIFICATION_STATUS_CONFIG,
   getReportStatusConfig,
-  getVerificationStatusConfig,
   getBilingualDiseaseLabel,
   getDiseaseColor,
 } from '@/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
+
+// Helper: extract lat/lon from Report (supports GeoJSON location)
+function getReportCoords(report: Report): { lat: number; lon: number } {
+  if (report.location?.coordinates) {
+    return { lon: report.location.coordinates[0], lat: report.location.coordinates[1] };
+  }
+  return { lat: 0, lon: 0 };
+}
 
 // Helper function to get address from coordinates
 async function fetchAddressFromCoords(lat: number, lon: number): Promise<string> {
@@ -34,128 +46,86 @@ async function fetchAddressFromCoords(lat: number, lon: number): Promise<string>
   return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 }
 
-// Transform API response (camelCase) to frontend format (snake_case)
+/** Normalize API response to Report interface (handles both new and legacy fields) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformApiReport(apiReport: any): Report {
-  // Extract coordinates from location GeoJSON
-  let lat = apiReport.lat;
-  let lon = apiReport.lon;
-  
-  if (apiReport.location?.coordinates) {
-    // GeoJSON Point: [longitude, latitude]
-    lon = apiReport.location.coordinates[0];
-    lat = apiReport.location.coordinates[1];
-  }
-
-  // Get user info if available
-  const user = apiReport.user || {};
-
+function normalizeReport(apiReport: any): Report {
   return {
-    id: apiReport.id,
-    case_id: apiReport.caseId,
-    reporter_id: apiReport.userId || user.id,
-    reporter_name: user.name || apiReport.reporterName || 'Ẩn danh',
-    reporter_phone: user.phone || apiReport.reporterPhone || '',
-    reporter_email: user.email || apiReport.reporterEmail || '',
-    
-    // Case location
-    lat: lat || 0,
-    lon: lon || 0,
-    address: apiReport.address || '',
-    region_id: apiReport.regionId,
-    region_name: apiReport.regionName,
-    
-    // Reporter location
-    reporter_lat: apiReport.reporterLocation?.coordinates?.[1],
-    reporter_lon: apiReport.reporterLocation?.coordinates?.[0],
-    
-    // Report content
-    disease_type: apiReport.diseaseType || '',
+    ...apiReport,
+    // Ensure user info
+    reporterName: apiReport.reporterName || apiReport.user?.name || 'Ẩn danh',
+    reporterPhone: apiReport.reporterPhone || apiReport.user?.phone || '',
+    // Ensure defaults
+    diseaseType: apiReport.diseaseType || '',
     description: apiReport.description || '',
-    symptoms: apiReport.symptoms || [],
-    affected_count: apiReport.affectedCount || 1,
-    images: apiReport.imageUrls || apiReport.images || [],
-    
-    // Detailed report fields
-    is_detailed_report: apiReport.isDetailedReport || false,
-    patient_info: apiReport.patientInfo,
-    
-    // Timestamps
-    created_at: apiReport.createdAt || new Date().toISOString(),
-    updated_at: apiReport.updatedAt || new Date().toISOString(),
-    
-    // Workflow - map 'pending'/'verified'/'rejected' to report workflow statuses
-    report_status: mapApiStatus(apiReport.status),
-    verification_status: mapVerificationStatus(apiReport.status),
-    
-    // Review info
-    reviewed_by: apiReport.verifiedBy,
-    reviewed_at: apiReport.verifiedAt,
-    review_notes: apiReport.adminNote,
-    
-    // Priority (default to medium if not specified)
+    status: apiReport.status || 'submitted',
+    createdAt: apiReport.createdAt || new Date().toISOString(),
+    updatedAt: apiReport.updatedAt || new Date().toISOString(),
     priority: apiReport.priority || 'medium',
-  };
+    reportType: apiReport.reportType || 'case_report',
+    severityLevel: apiReport.severityLevel || 'medium',
+    isDetailedReport: apiReport.isDetailedReport || false,
+    isSelfReport: apiReport.isSelfReport || false,
+  } as Report;
 }
 
-// Map API status to report_status
-function mapApiStatus(status: string): ReportStatus {
-  const statusMap: Record<string, ReportStatus> = {
-    'pending': 'pending',
-    'verified': 'approved',
-    'rejected': 'rejected',
-    'resolved': 'approved',
-  };
-  return statusMap[status] || 'pending';
+/** Get next available workflow actions based on current status */
+function getWorkflowActions(status: ReportStatus): { key: string; label: string; icon: string; color: string }[] {
+  switch (status) {
+    case 'submitted':
+      return [{ key: 'preliminary-review', label: 'Xem xét sơ bộ', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' }];
+    case 'under_review':
+      return [
+        { key: 'preliminary-review', label: 'Hoàn tất xem xét', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' },
+      ];
+    case 'field_verification':
+      return [{ key: 'field-verify', label: 'Xác minh thực địa', icon: '🏥', color: 'bg-orange-500 hover:bg-orange-600' }];
+    case 'confirmed':
+      return [
+        { key: 'official-confirm', label: 'Xác nhận chính thức', icon: '✅', color: 'bg-emerald-500 hover:bg-emerald-600' },
+        { key: 'close', label: 'Đóng báo cáo', icon: '📁', color: 'bg-slate-500 hover:bg-slate-600' },
+      ];
+    case 'pending':
+    case 'verified':
+      return [{ key: 'preliminary-review', label: 'Xem xét sơ bộ', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' }];
+    default:
+      return [];
+  }
 }
 
-// Map API status to verification_status
-function mapVerificationStatus(status: string): VerificationStatus {
-  const statusMap: Record<string, VerificationStatus> = {
-    'pending': 'unverified',
-    'verified': 'verified',
-    'rejected': 'invalid',
-    'resolved': 'verified',
-  };
-  return statusMap[status] || 'unverified';
+function toDisplayStatus(status: ReportStatus): ReportStatus {
+  return status;
 }
 
 // Address Cell Component - Fetches address if not available
-function AddressCell({ address, regionName, lat, lon }: { 
+function AddressCell({ address, report }: { 
   address?: string; 
-  regionName?: string;
-  lat: number; 
-  lon: number; 
+  report: Report;
 }) {
+  const coords = getReportCoords(report);
   const [displayAddress, setDisplayAddress] = useState<string>(
-    regionName || address || `${lat?.toFixed(4)}, ${lon?.toFixed(4)}`
+    address || `${coords.lat?.toFixed(4)}, ${coords.lon?.toFixed(4)}`
   );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If we already have a valid address, don't fetch
-    if (regionName || address) {
-      setDisplayAddress(regionName || address || '');
+    if (address) {
+      setDisplayAddress(address);
       return;
     }
-
-    // Only fetch if we have valid coordinates
-    if (lat && lon && !regionName && !address) {
+    if (coords.lat && coords.lon && !address) {
       setLoading(true);
-      fetchAddressFromCoords(lat, lon)
-        .then(addr => {
-          setDisplayAddress(addr);
-        })
+      fetchAddressFromCoords(coords.lat, coords.lon)
+        .then(addr => setDisplayAddress(addr))
         .finally(() => setLoading(false));
     }
-  }, [address, regionName, lat, lon]);
+  }, [address, coords.lat, coords.lon]);
 
   return (
     <div className="text-sm">
       {loading ? (
         <span className="text-slate-400">Đang tải...</span>
       ) : (
-        <span title={`${lat?.toFixed(6)}, ${lon?.toFixed(6)}`}>
+        <span title={`${coords.lat?.toFixed(6)}, ${coords.lon?.toFixed(6)}`}>
           {displayAddress}
         </span>
       )}
@@ -163,31 +133,21 @@ function AddressCell({ address, regionName, lat, lon }: {
   );
 }
 
-// Navigation items
-const navItems = [
-  { href: '/', icon: '🗺️', label: 'Dashboard' },
-  { href: '/stats', icon: '📊', label: 'Statistics' },
-  { href: '/admin/reports', icon: '📋', label: 'Reports' },
-  { href: '/admin', icon: '🏥', label: 'Cases' },
-  { href: '/admin/zones', icon: '🚨', label: 'Zones' },
-  { href: '/admin/posts', icon: '💬', label: 'Posts' },
-  { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
-  { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
-  { href: '/admin/users', icon: '👥', label: 'Users' },
-  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
-];
+// Use shared navigation items
+const navItems = ADMIN_NAV_ITEMS;
 
 export default function ReportsPage() {
   const pathname = usePathname();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [workflowAction, setWorkflowAction] = useState<string | null>(null);
+  const [statusHistory, setStatusHistory] = useState<ReportStatusHistory[]>([]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'ALL'>('ALL');
-  const [verificationFilter, setVerificationFilter] = useState<VerificationStatus | 'ALL'>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -201,23 +161,28 @@ export default function ReportsPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      if (verificationFilter !== 'ALL') params.set('verification', verificationFilter);
       if (priorityFilter !== 'ALL') params.set('priority', priorityFilter);
       if (searchQuery) params.set('search', searchQuery);
 
       const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const res = await fetch(`${API}/reports?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
         const rawReports = data.data || data || [];
-        // Transform API response to frontend format
-        const transformedReports = rawReports.map(transformApiReport);
-        setReports(transformedReports);
+        setReports(rawReports.map(normalizeReport));
       } else {
+        if (res.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          router.push('/login');
+          return;
+        }
         console.error('Failed to fetch reports:', res.status);
         setReports([]);
       }
@@ -227,20 +192,45 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, verificationFilter, priorityFilter, searchQuery]);
+  }, [statusFilter, priorityFilter, searchQuery, router]);
 
   useEffect(() => {
     loadReports();
   }, [loadReports]);
 
-  // Stats
+  // Load status history for a report
+  const loadStatusHistory = useCallback(async (reportId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const res = await fetch(`${API}/reports/${reportId}/history`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatusHistory(data || []);
+      } else if (res.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        router.push('/login');
+      }
+    } catch (err) {
+      console.error('Error loading status history:', err);
+    }
+  }, [router]);
+
+  // Stats - new workflow statuses
   const stats = useMemo(() => {
     return {
-      pending: reports.filter(r => r.report_status === 'pending').length,
-      in_review: reports.filter(r => r.report_status === 'in_review').length,
-      approved: reports.filter(r => r.report_status === 'approved').length,
-      rejected: reports.filter(r => r.report_status === 'rejected').length,
-      needs_info: reports.filter(r => r.report_status === 'needs_info').length,
+      submitted: reports.filter(r => r.status === 'submitted' || r.status === 'pending').length,
+      under_review: reports.filter(r => r.status === 'under_review').length,
+      field_verification: reports.filter(r => r.status === 'field_verification').length,
+      confirmed: reports.filter(r => r.status === 'confirmed' || r.status === 'verified').length,
+      rejected: reports.filter(r => r.status === 'rejected').length,
+      closed: reports.filter(r => r.status === 'closed' || r.status === 'resolved').length,
       total: reports.length,
     };
   }, [reports]);
@@ -248,23 +238,24 @@ export default function ReportsPage() {
   // Filtered reports
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
-      if (statusFilter !== 'ALL' && r.report_status !== statusFilter) return false;
-      if (verificationFilter !== 'ALL' && r.verification_status !== verificationFilter) return false;
+      const displayStatus = toDisplayStatus(r.status);
+      if (statusFilter !== 'ALL' && displayStatus !== statusFilter) return false;
       if (priorityFilter !== 'ALL' && r.priority !== priorityFilter) return false;
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
+        const name = r.reporterName || r.user?.name || '';
         if (
-          !r.reporter_name.toLowerCase().includes(query) &&
+          !name.toLowerCase().includes(query) &&
           !r.description.toLowerCase().includes(query) &&
-          !r.disease_type.toLowerCase().includes(query) &&
-          !(r.region_name || '').toLowerCase().includes(query)
+          !r.diseaseType.toLowerCase().includes(query) &&
+          !(r.address || '').toLowerCase().includes(query)
         ) {
           return false;
         }
       }
       return true;
     });
-  }, [reports, statusFilter, verificationFilter, priorityFilter, searchQuery]);
+  }, [reports, statusFilter, priorityFilter, searchQuery]);
 
   // Pagination
   const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
@@ -273,57 +264,122 @@ export default function ReportsPage() {
     currentPage * itemsPerPage
   );
 
-  // Handle review action
-  const handleReview = async (report: Report, payload: ReportReviewPayload) => {
-    try {
-      // Map frontend status to API status
-      const apiStatus = payload.report_status === 'approved' ? 'verified' : 
-                        payload.report_status === 'rejected' ? 'rejected' : 
-                        payload.report_status === 'in_review' ? 'pending' :
-                        payload.report_status === 'pending' ? 'pending' : 'pending';
-      
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/reports/${report.id}/status`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          status: apiStatus,
-          adminNote: payload.review_notes || payload.verification_notes,
-          // Include flag to create case if approving detailed report
-          createCase: payload.report_status === 'approved' && report.is_detailed_report,
-        }),
-      });
-      
-      if (res.ok) {
-        // Successfully updated - reload from server
-        await loadReports();
-        alert('✅ Cập nhật báo cáo thành công!');
-      } else {
-        const errorText = await res.text();
-        console.error('Failed to update report status:', res.status, errorText);
-        alert(`❌ Không thể cập nhật báo cáo: ${res.status === 401 ? 'Phiên đăng nhập hết hạn' : 'Lỗi server'}`);
-      }
-    } catch (err) {
-      console.error('Error reviewing report:', err);
-      alert('❌ Lỗi khi cập nhật báo cáo');
+  // ===== Workflow action handlers =====
+  const authHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+  });
+
+  const handleAuthError = (status: number) => {
+    if (status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      router.push('/login');
+      return true;
     }
+    return false;
+  };
+
+  const handlePreliminaryReview = async (reportId: string, result: PreliminaryResult, note?: string) => {
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/preliminary-review`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ result, note }),
+      });
+      if (res.ok) {
+        await loadReports();
+        alert('✅ Xem xét sơ bộ thành công!');
+      } else {
+        if (!handleAuthError(res.status)) {
+          alert('❌ Lỗi xử lý xem xét sơ bộ');
+        }
+      }
+    } catch { alert('❌ Lỗi kết nối'); }
     setReviewModalOpen(false);
     setSelectedReport(null);
+    setWorkflowAction(null);
   };
 
-  const handleQuickApprove = (report: Report) => {
-    handleReview(report, { report_status: 'approved', verification_status: 'verified' });
+  const handleFieldVerify = async (reportId: string, result: FieldVerificationResult, note?: string) => {
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/field-verify`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ result, note }),
+      });
+      if (res.ok) {
+        await loadReports();
+        alert('✅ Xác minh thực địa thành công!');
+      } else {
+        if (!handleAuthError(res.status)) {
+          alert('❌ Lỗi xử lý xác minh thực địa');
+        }
+      }
+    } catch { alert('❌ Lỗi kết nối'); }
+    setReviewModalOpen(false);
+    setSelectedReport(null);
+    setWorkflowAction(null);
   };
 
-  const handleQuickReject = (report: Report) => {
-    handleReview(report, { report_status: 'rejected' });
+  const handleOfficialConfirm = async (reportId: string, classification: OfficialClassification, note?: string, createCase?: boolean) => {
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/official-confirm`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ classification, note, createCase }),
+      });
+      if (res.ok) {
+        await loadReports();
+        alert('✅ Xác nhận chính thức thành công!');
+      } else {
+        if (!handleAuthError(res.status)) {
+          alert('❌ Lỗi xử lý xác nhận chính thức');
+        }
+      }
+    } catch { alert('❌ Lỗi kết nối'); }
+    setReviewModalOpen(false);
+    setSelectedReport(null);
+    setWorkflowAction(null);
   };
 
-  const handleStartReview = (report: Report) => {
-    handleReview(report, { report_status: 'in_review' });
+  const handleCloseReport = async (reportId: string, action: ClosureAction, note?: string) => {
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/close`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ action, note }),
+      });
+      if (res.ok) {
+        await loadReports();
+        alert('✅ Đóng báo cáo thành công!');
+      } else {
+        if (!handleAuthError(res.status)) {
+          alert('❌ Lỗi đóng báo cáo');
+        }
+      }
+    } catch { alert('❌ Lỗi kết nối'); }
+    setReviewModalOpen(false);
+    setSelectedReport(null);
+    setWorkflowAction(null);
+  };
+
+  // Legacy quick reject via status endpoint
+  const handleQuickReject = async (report: Report) => {
+    try {
+      const res = await fetch(`${API}/reports/${report.id}/status`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ status: 'rejected', adminNote: 'Từ chối nhanh' }),
+      });
+      if (res.ok) {
+        await loadReports();
+        alert('✅ Đã từ chối báo cáo');
+      } else if (!handleAuthError(res.status)) {
+        alert('❌ Lỗi từ chối báo cáo');
+      }
+    } catch { alert('❌ Lỗi kết nối'); }
   };
 
   const getTimeAgo = (dateStr: string) => {
@@ -344,75 +400,25 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex">
       {/* Sidebar */}
-      <aside 
-        className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 shadow-sm z-50 transition-all duration-300 ${
-          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
-        }`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-slate-200">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-            SZ
-          </div>
-          {!sidebarCollapsed && (
-            <span className="ml-3 font-bold text-slate-800 text-lg">SafeZone</span>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <nav className="p-3 space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                  isActive 
-                    ? 'bg-emerald-50 text-emerald-700 font-semibold' 
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="text-xl">{item.icon}</span>
-                {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Collapse Button */}
-        <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute bottom-4 right-4 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
-        >
-          {sidebarCollapsed ? '→' : '←'}
-        </button>
-      </aside>
+      <Sidebar navItems={navItems} />
 
       {/* Main Content */}
-      <main className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'}`}>
-        {/* Top Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">📋 Quản lý báo cáo</h1>
-            <p className="text-sm text-slate-500">Duyệt và xác thực báo cáo từ người dùng</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors">
-              🔔
-            </button>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold">
-              A
-            </div>
-          </div>
-        </header>
+      <main className="flex-1 ml-64">
+        {/* Header */}
+        <Header />
+
+        {/* Page Title */}
+        <div className="bg-white border-b border-slate-200 px-6 py-4">
+          <h1 className="text-2xl font-bold text-slate-800">📋 Quản lý báo cáo</h1>
+          <p className="text-sm text-slate-500">Duyệt và xác thực báo cáo từ người dùng</p>
+        </div>
 
         {/* Page Content */}
-        <div className="p-6">
+        <div className="p-6 bg-slate-50 min-h-[calc(100vh-80px)]">
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
             <div 
               onClick={() => setStatusFilter('ALL')}
               className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
@@ -424,34 +430,44 @@ export default function ReportsPage() {
               <div className="text-xs text-slate-500">Tất cả</div>
             </div>
             <div 
-              onClick={() => setStatusFilter('pending')}
+              onClick={() => setStatusFilter('submitted')}
               className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
-                statusFilter === 'pending' ? 'ring-2 ring-amber-500 bg-amber-50' : ''
+                statusFilter === 'submitted' ? 'ring-2 ring-gray-500 bg-gray-50' : ''
               }`}
             >
-              <div className="text-2xl mb-2">⏳</div>
-              <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
-              <div className="text-xs text-slate-500">Chờ duyệt</div>
+              <div className="text-2xl mb-2">📝</div>
+              <div className="text-2xl font-bold text-gray-600">{stats.submitted}</div>
+              <div className="text-xs text-slate-500">Đã gửi</div>
             </div>
             <div 
-              onClick={() => setStatusFilter('in_review')}
+              onClick={() => setStatusFilter('under_review')}
               className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
-                statusFilter === 'in_review' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                statusFilter === 'under_review' ? 'ring-2 ring-blue-500 bg-blue-50' : ''
               }`}
             >
               <div className="text-2xl mb-2">🔍</div>
-              <div className="text-2xl font-bold text-blue-600">{stats.in_review}</div>
-              <div className="text-xs text-slate-500">Đang duyệt</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.under_review}</div>
+              <div className="text-xs text-slate-500">Xem xét</div>
             </div>
             <div 
-              onClick={() => setStatusFilter('approved')}
+              onClick={() => setStatusFilter('field_verification')}
               className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
-                statusFilter === 'approved' ? 'ring-2 ring-emerald-500 bg-emerald-50' : ''
+                statusFilter === 'field_verification' ? 'ring-2 ring-orange-500 bg-orange-50' : ''
+              }`}
+            >
+              <div className="text-2xl mb-2">🏥</div>
+              <div className="text-2xl font-bold text-orange-600">{stats.field_verification}</div>
+              <div className="text-xs text-slate-500">Thực địa</div>
+            </div>
+            <div 
+              onClick={() => setStatusFilter('confirmed')}
+              className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
+                statusFilter === 'confirmed' ? 'ring-2 ring-emerald-500 bg-emerald-50' : ''
               }`}
             >
               <div className="text-2xl mb-2">✅</div>
-              <div className="text-2xl font-bold text-emerald-600">{stats.approved}</div>
-              <div className="text-xs text-slate-500">Đã duyệt</div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.confirmed}</div>
+              <div className="text-xs text-slate-500">Xác nhận</div>
             </div>
             <div 
               onClick={() => setStatusFilter('rejected')}
@@ -464,14 +480,14 @@ export default function ReportsPage() {
               <div className="text-xs text-slate-500">Từ chối</div>
             </div>
             <div 
-              onClick={() => setStatusFilter('needs_info')}
+              onClick={() => setStatusFilter('closed')}
               className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
-                statusFilter === 'needs_info' ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+                statusFilter === 'closed' ? 'ring-2 ring-slate-500 bg-slate-50' : ''
               }`}
             >
-              <div className="text-2xl mb-2">❓</div>
-              <div className="text-2xl font-bold text-purple-600">{stats.needs_info}</div>
-              <div className="text-xs text-slate-500">Cần thêm TT</div>
+              <div className="text-2xl mb-2">📁</div>
+              <div className="text-2xl font-bold text-slate-600">{stats.closed}</div>
+              <div className="text-xs text-slate-500">Đã đóng</div>
             </div>
           </div>
 
@@ -488,14 +504,16 @@ export default function ReportsPage() {
                 />
               </div>
               <select
-                value={verificationFilter}
-                onChange={(e) => setVerificationFilter(e.target.value as VerificationStatus | 'ALL')}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as ReportStatus | 'ALL')}
                 className="input min-w-[160px]"
               >
-                <option value="ALL">Tất cả xác thực</option>
-                {Object.entries(VERIFICATION_STATUS_CONFIG).map(([status, config]) => (
-                  <option key={status} value={status}>{config.icon} {config.labelVi}</option>
-                ))}
+                <option value="ALL">Tất cả trạng thái</option>
+                {Object.entries(REPORT_STATUS_CONFIG).map(([status, config]) => {
+                  // Skip backward compat statuses in filter
+                  if (['resolved'].includes(status)) return null;
+                  return <option key={status} value={status}>{config.icon} {config.labelVi}</option>;
+                })}
               </select>
               <select
                 value={priorityFilter}
@@ -511,7 +529,6 @@ export default function ReportsPage() {
               <button 
                 onClick={() => {
                   setStatusFilter('ALL');
-                  setVerificationFilter('ALL');
                   setPriorityFilter('ALL');
                   setSearchQuery('');
                 }}
@@ -544,6 +561,7 @@ export default function ReportsPage() {
                       <tr>
                         <th>Người báo cáo</th>
                         <th>Loại bệnh</th>
+                        <th>Lần gửi</th>
                         <th>Vị trí</th>
                         <th>Mô tả</th>
                         <th>Trạng thái</th>
@@ -554,7 +572,11 @@ export default function ReportsPage() {
                     </thead>
                     <tbody>
                       {paginatedReports.map((report) => {
-                        const statusConfig = getReportStatusConfig(report.report_status);
+                        const displayStatus = toDisplayStatus(report.status);
+                        const statusConfig = getReportStatusConfig(displayStatus);
+                        const coords = getReportCoords(report);
+                        const reporterName = report.reporterName || report.user?.name || 'Ẩn danh';
+                        const reporterPhone = report.reporterPhone || report.user?.phone || '';
                         const priorityColors: Record<string, string> = {
                           urgent: 'bg-red-100 text-red-700',
                           high: 'bg-orange-100 text-orange-700',
@@ -567,22 +589,31 @@ export default function ReportsPage() {
                           medium: 'TB',
                           low: 'Thấp',
                         };
+                        const reportTypeLabels: Record<string, { icon: string; label: string }> = {
+                          case_report: { icon: '📋', label: 'Ca bệnh' },
+                          outbreak_alert: { icon: '🚨', label: 'Ổ dịch' },
+                        };
+                        const typeInfo = reportTypeLabels[report.reportType] || reportTypeLabels.case_report;
+                        const actions = getWorkflowActions(report.status);
 
                         return (
                           <tr key={report.id} className="hover:bg-slate-50">
                             <td>
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-lg">
-                                  {report.is_detailed_report ? '🏥' : '👤'}
+                                  {report.reportType === 'outbreak_alert' ? '🚨' : report.isDetailedReport ? '🏥' : '👤'}
                                 </div>
                                 <div>
                                   <div className="font-medium text-slate-800 flex items-center gap-2">
-                                    {report.reporter_name}
-                                    {report.is_detailed_report && (
+                                    {reporterName}
+                                    {report.reportType === 'outbreak_alert' && (
+                                      <span className="badge bg-red-100 text-red-700 text-xs">Ổ dịch</span>
+                                    )}
+                                    {report.isDetailedReport && report.reportType !== 'outbreak_alert' && (
                                       <span className="badge badge-warning text-xs">Chi tiết</span>
                                     )}
                                   </div>
-                                  <div className="text-xs text-slate-500">{report.reporter_phone}</div>
+                                  <div className="text-xs text-slate-500">{reporterPhone}</div>
                                 </div>
                               </div>
                             </td>
@@ -590,18 +621,24 @@ export default function ReportsPage() {
                               <div className="flex items-center gap-2">
                                 <span 
                                   className="w-3 h-3 rounded-full"
-                                  style={{ background: getDiseaseColor(report.disease_type) }}
+                                  style={{ background: getDiseaseColor(report.diseaseType) }}
                                 />
-                                <span className="font-medium">{getBilingualDiseaseLabel(report.disease_type)}</span>
+                                <span className="font-medium">{getBilingualDiseaseLabel(report.diseaseType)}</span>
                               </div>
                             </td>
                             <td>
-                              <AddressCell 
-                                address={report.address} 
-                                regionName={report.region_name}
-                                lat={report.lat} 
-                                lon={report.lon} 
-                              />
+                              <div className="flex items-center justify-center">
+                                {report.userSubmissionCount && report.userSubmissionCount > 1 ? (
+                                  <span className="badge badge-warning">
+                                    #{report.userSubmissionCount}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 text-sm">#1</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <AddressCell address={report.address} report={report} />
                             </td>
                             <td>
                               <div className="max-w-[200px] truncate text-sm text-slate-600">
@@ -610,52 +647,61 @@ export default function ReportsPage() {
                             </td>
                             <td>
                               <span className={`badge ${
-                                report.report_status === 'pending' ? 'badge-warning' :
-                                report.report_status === 'in_review' ? 'badge-info' :
-                                report.report_status === 'approved' ? 'badge-success' :
-                                report.report_status === 'rejected' ? 'badge-error' :
+                                displayStatus === 'submitted' || displayStatus === 'pending' ? 'bg-gray-100 text-gray-700' :
+                                displayStatus === 'under_review' ? 'badge-info' :
+                                displayStatus === 'field_verification' ? 'bg-orange-100 text-orange-700' :
+                                displayStatus === 'confirmed' || displayStatus === 'verified' ? 'badge-success' :
+                                displayStatus === 'rejected' ? 'badge-error' :
+                                displayStatus === 'closed' || displayStatus === 'resolved' ? 'bg-slate-100 text-slate-700' :
                                 'bg-purple-100 text-purple-700'
                               }`}>
                                 {statusConfig.icon} {statusConfig.labelVi}
                               </span>
                             </td>
                             <td>
-                              <span className={`badge ${priorityColors[report.priority] || 'bg-slate-100 text-slate-700'}`}>
-                                {priorityLabels[report.priority] || report.priority}
+                              <span className={`badge ${priorityColors[report.priority || 'medium'] || 'bg-slate-100 text-slate-700'}`}>
+                                {priorityLabels[report.priority || 'medium'] || report.priority}
                               </span>
                             </td>
                             <td className="text-sm text-slate-500">
-                              {getTimeAgo(report.created_at)}
+                              {getTimeAgo(report.createdAt)}
                             </td>
                             <td>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
                                 <button 
                                   onClick={() => {
                                     setSelectedReport(report);
+                                    setWorkflowAction(null);
                                     setReviewModalOpen(true);
+                                    loadStatusHistory(report.id);
                                   }}
                                   className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
                                   title="Xem chi tiết"
                                 >
                                   👁️
                                 </button>
-                                {(report.report_status === 'pending' || report.report_status === 'in_review') && (
-                                  <>
-                                    <button 
-                                      onClick={() => handleQuickApprove(report)}
-                                      className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors"
-                                      title="Duyệt"
-                                    >
-                                      ✅
-                                    </button>
-                                    <button 
-                                      onClick={() => handleQuickReject(report)}
-                                      className="p-2 rounded-lg hover:bg-red-100 text-red-600 transition-colors"
-                                      title="Từ chối"
-                                    >
-                                      ❌
-                                    </button>
-                                  </>
+                                {actions.length > 0 && (
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedReport(report);
+                                      setWorkflowAction(actions[0].key);
+                                      setReviewModalOpen(true);
+                                      loadStatusHistory(report.id);
+                                    }}
+                                    className={`p-2 rounded-lg hover:opacity-80 text-white text-xs ${actions[0].color} transition-colors`}
+                                    title={actions[0].label}
+                                  >
+                                    {actions[0].icon}
+                                  </button>
+                                )}
+                                {report.status !== 'rejected' && report.status !== 'closed' && (
+                                  <button 
+                                    onClick={() => handleQuickReject(report)}
+                                    className="p-2 rounded-lg hover:bg-red-100 text-red-600 transition-colors"
+                                    title="Từ chối"
+                                  >
+                                    ❌
+                                  </button>
                                 )}
                               </div>
                             </td>
@@ -727,34 +773,63 @@ export default function ReportsPage() {
       {reviewModalOpen && selectedReport && (
         <ReviewModal
           report={selectedReport}
+          initialAction={workflowAction}
+          statusHistory={statusHistory}
           onClose={() => {
             setReviewModalOpen(false);
             setSelectedReport(null);
+            setWorkflowAction(null);
           }}
-          onSubmit={(payload) => handleReview(selectedReport, payload)}
+          onPreliminaryReview={(result, note) => handlePreliminaryReview(selectedReport.id, result, note)}
+          onFieldVerify={(result, note) => handleFieldVerify(selectedReport.id, result, note)}
+          onOfficialConfirm={(classification, note, createCase) => handleOfficialConfirm(selectedReport.id, classification, note, createCase)}
+          onCloseReport={(action, note) => handleCloseReport(selectedReport.id, action, note)}
         />
       )}
     </div>
   );
 }
 
+// ============================
 // Review Modal Component
+// ============================
 function ReviewModal({ 
-  report, 
+  report,
+  initialAction,
+  statusHistory,
   onClose, 
-  onSubmit 
+  onPreliminaryReview,
+  onFieldVerify,
+  onOfficialConfirm,
+  onCloseReport,
 }: { 
-  report: Report; 
+  report: Report;
+  initialAction: string | null;
+  statusHistory: ReportStatusHistory[];
   onClose: () => void; 
-  onSubmit: (payload: ReportReviewPayload) => void;
+  onPreliminaryReview: (result: PreliminaryResult, note?: string) => void;
+  onFieldVerify: (result: FieldVerificationResult, note?: string) => void;
+  onOfficialConfirm: (classification: OfficialClassification, note?: string, createCase?: boolean) => void;
+  onCloseReport: (action: ClosureAction, note?: string) => void;
 }) {
-  const [status, setStatus] = useState<ReportStatus>(report.report_status);
-  const [verification, setVerification] = useState<VerificationStatus>(report.verification_status);
-  const [reviewNotes, setReviewNotes] = useState(report.review_notes || '');
-  const [verificationNotes, setVerificationNotes] = useState(report.verification_notes || '');
+  const [activeAction, setActiveAction] = useState<string | null>(initialAction);
+  const [note, setNote] = useState('');
+  
+  // Preliminary review
+  const [preliminaryResult, setPreliminaryResult] = useState<PreliminaryResult>('valid');
+  // Field verification
+  const [fieldResult, setFieldResult] = useState<FieldVerificationResult>('confirmed_suspected');
+  // Official confirmation
+  const [classification, setClassification] = useState<OfficialClassification>('suspected');
+  const [createCase, setCreateCase] = useState(false);
+  // Close
+  const [closureAction, setClosureAction] = useState<ClosureAction>('monitoring');
 
-  const statusConfig = getReportStatusConfig(report.report_status);
-  const verificationConfig = getVerificationStatusConfig(report.verification_status);
+  const coords = getReportCoords(report);
+  const statusConfig = getReportStatusConfig(report.status);
+  const reporterName = report.reporterName || report.user?.name || 'Ẩn danh';
+  const reporterPhone = report.reporterPhone || report.user?.phone || '';
+  const actions = getWorkflowActions(report.status);
 
   const priorityOptions: Record<string, { color: string; label: string; icon: string }> = {
     urgent: { color: '#ef4444', label: 'Khẩn cấp', icon: '🔴' },
@@ -762,28 +837,43 @@ function ReviewModal({
     medium: { color: '#eab308', label: 'Trung bình', icon: '🟡' },
     low: { color: '#22c55e', label: 'Thấp', icon: '🟢' },
   };
-  const priorityConfig = priorityOptions[report.priority] || { color: '#94a3b8', label: 'N/A', icon: '⚪' };
+  const priorityConfig = priorityOptions[report.priority || 'medium'] || { color: '#94a3b8', label: 'N/A', icon: '⚪' };
 
   const getTimeAgo = (dateStr: string) => {
     if (!dateStr) return 'Không xác định';
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return 'Không xác định';
-    
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-
     if (diffMins < 0) return 'Vừa xong';
     if (diffMins < 60) return `${diffMins} phút trước`;
     if (diffHours < 24) return `${diffHours} giờ trước`;
     return `${diffDays} ngày trước`;
   };
 
+  const handleSubmit = () => {
+    switch (activeAction) {
+      case 'preliminary-review':
+        onPreliminaryReview(preliminaryResult, note || undefined);
+        break;
+      case 'field-verify':
+        onFieldVerify(fieldResult, note || undefined);
+        break;
+      case 'official-confirm':
+        onOfficialConfirm(classification, note || undefined, createCase);
+        break;
+      case 'close':
+        onCloseReport(closureAction, note || undefined);
+        break;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-4">
@@ -792,7 +882,7 @@ function ReviewModal({
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-800">Chi tiết báo cáo #{report.id}</h2>
-              <p className="text-sm text-slate-500">{getTimeAgo(report.created_at)}</p>
+              <p className="text-sm text-slate-500">{getTimeAgo(report.createdAt)}</p>
             </div>
           </div>
           <button 
@@ -805,22 +895,33 @@ function ReviewModal({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          {/* Status Badges */}
+          {/* Status & Type Badges */}
           <div className="flex flex-wrap gap-3 mb-6">
             <span className={`badge ${
-              report.report_status === 'pending' ? 'badge-warning' :
-              report.report_status === 'in_review' ? 'badge-info' :
-              report.report_status === 'approved' ? 'badge-success' :
-              report.report_status === 'rejected' ? 'badge-error' :
-              'bg-purple-100 text-purple-700'
+              report.status === 'submitted' || report.status === 'pending' ? 'bg-gray-100 text-gray-700' :
+              report.status === 'under_review' ? 'badge-info' :
+              report.status === 'field_verification' ? 'bg-orange-100 text-orange-700' :
+              report.status === 'confirmed' || report.status === 'verified' ? 'badge-success' :
+              report.status === 'rejected' ? 'badge-error' :
+              'bg-slate-100 text-slate-700'
             }`}>
               {statusConfig.icon} {statusConfig.labelVi}
             </span>
-            <span className="badge bg-slate-100 text-slate-700">
-              {verificationConfig.icon} {verificationConfig.labelVi}
-            </span>
             <span className="badge" style={{ background: priorityConfig.color + '20', color: priorityConfig.color }}>
               {priorityConfig.icon} {priorityConfig.label}
+            </span>
+            <span className="badge bg-blue-100 text-blue-700">
+              {report.reportType === 'outbreak_alert' ? '🚨 Cảnh báo ổ dịch' : '📋 Ca bệnh'}
+            </span>
+            <span className={`badge ${
+              report.severityLevel === 'critical' ? 'bg-red-100 text-red-700' :
+              report.severityLevel === 'high' ? 'bg-orange-100 text-orange-700' :
+              report.severityLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-green-100 text-green-700'
+            }`}>
+              Mức độ: {report.severityLevel === 'critical' ? 'Nghiêm trọng' : 
+                       report.severityLevel === 'high' ? 'Cao' : 
+                       report.severityLevel === 'medium' ? 'Trung bình' : 'Thấp'}
             </span>
           </div>
 
@@ -830,12 +931,17 @@ function ReviewModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-xs text-slate-500 mb-1">Họ tên</div>
-                <div className="font-medium">{report.reporter_name}</div>
+                <div className="font-medium">{reporterName}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 mb-1">Số điện thoại</div>
-                <div className="font-medium">{report.reporter_phone}</div>
+                <div className="font-medium">{reporterPhone}</div>
               </div>
+              {report.isSelfReport && (
+                <div className="col-span-2">
+                  <span className="badge bg-purple-100 text-purple-700">Tự báo cáo (bệnh nhân)</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -848,15 +954,15 @@ function ReviewModal({
                 <div className="flex items-center gap-2">
                   <span 
                     className="w-3 h-3 rounded-full"
-                    style={{ background: getDiseaseColor(report.disease_type) }}
+                    style={{ background: getDiseaseColor(report.diseaseType) }}
                   />
-                  <span className="font-medium">{getBilingualDiseaseLabel(report.disease_type)}</span>
+                  <span className="font-medium">{getBilingualDiseaseLabel(report.diseaseType)}</span>
                 </div>
               </div>
-              {report.affected_count && (
+              {report.affectedCount && (
                 <div>
                   <div className="text-xs text-slate-500 mb-1">Số người ảnh hưởng</div>
-                  <div className="font-medium">{report.affected_count} người</div>
+                  <div className="font-medium">{report.affectedCount} người</div>
                 </div>
               )}
             </div>
@@ -876,23 +982,50 @@ function ReviewModal({
             )}
           </div>
 
+          {/* Epidemiological Info */}
+          {(report.hasContactWithPatient || report.hasVisitedEpidemicArea || report.hasSimilarCasesNearby) && (
+            <div className="card p-4 mb-4 border-2 border-yellow-200 bg-yellow-50">
+              <h3 className="font-semibold text-slate-800 mb-3">🔬 Thông tin dịch tễ</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Tiếp xúc người bệnh</div>
+                  <span className={`badge ${report.hasContactWithPatient ? 'badge-error' : 'bg-slate-100 text-slate-600'}`}>
+                    {report.hasContactWithPatient ? 'Có' : 'Không'}
+                  </span>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Đến vùng dịch</div>
+                  <span className={`badge ${report.hasVisitedEpidemicArea ? 'badge-error' : 'bg-slate-100 text-slate-600'}`}>
+                    {report.hasVisitedEpidemicArea ? 'Có' : 'Không'}
+                  </span>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Ca tương tự gần đây</div>
+                  <span className={`badge ${report.hasSimilarCasesNearby ? 'badge-error' : 'bg-slate-100 text-slate-600'}`}>
+                    {report.hasSimilarCasesNearby ? `Có (~${report.estimatedNearbyCount || '?'})` : 'Không'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Location Info */}
           <div className="card p-4 mb-4">
             <h3 className="font-semibold text-slate-800 mb-3">📍 Thông tin vị trí</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-xs text-slate-500 mb-1">Khu vực</div>
-                <div className="font-medium">{report.region_name || report.address || 'Không xác định'}</div>
+                <div className="font-medium">{report.address || 'Không xác định'}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 mb-1">Tọa độ</div>
-                <div className="font-mono text-sm">{report.lat?.toFixed(6)}, {report.lon?.toFixed(6)}</div>
+                <div className="font-mono text-sm">{coords.lat?.toFixed(6)}, {coords.lon?.toFixed(6)}</div>
               </div>
             </div>
           </div>
 
-          {/* Detailed Patient Info - Only show if is_detailed_report */}
-          {report.is_detailed_report && report.patient_info && (
+          {/* Detailed Patient Info */}
+          {report.isDetailedReport && report.patientInfo && (
             <div className="card p-4 mb-4 border-2 border-orange-200 bg-orange-50">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-2xl">🏥</span>
@@ -901,88 +1034,81 @@ function ReviewModal({
                   <span className="badge badge-warning text-xs">Báo cáo chi tiết</span>
                 </div>
               </div>
-              
-              {/* Personal Info */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                {report.patient_info.fullName && (
+                {report.patientInfo.fullName && (
                   <div>
                     <div className="text-xs text-slate-500 mb-1">Họ và tên</div>
-                    <div className="font-medium">{report.patient_info.fullName}</div>
+                    <div className="font-medium">{report.patientInfo.fullName}</div>
                   </div>
                 )}
-                {report.patient_info.age && (
+                {report.patientInfo.age && (
                   <div>
                     <div className="text-xs text-slate-500 mb-1">Tuổi</div>
-                    <div className="font-medium">{report.patient_info.age}</div>
+                    <div className="font-medium">{report.patientInfo.age}</div>
                   </div>
                 )}
-                {report.patient_info.gender && (
+                {report.patientInfo.gender && (
                   <div>
                     <div className="text-xs text-slate-500 mb-1">Giới tính</div>
                     <div className="font-medium">
-                      {report.patient_info.gender === 'male' ? 'Nam' : 
-                       report.patient_info.gender === 'female' ? 'Nữ' : 'Khác'}
+                      {report.patientInfo.gender === 'male' ? 'Nam' : 
+                       report.patientInfo.gender === 'female' ? 'Nữ' : 'Khác'}
                     </div>
                   </div>
                 )}
-                {report.patient_info.idNumber && (
+                {report.patientInfo.idNumber && (
                   <div>
                     <div className="text-xs text-slate-500 mb-1">CCCD/CMND</div>
-                    <div className="font-mono text-sm">{report.patient_info.idNumber}</div>
+                    <div className="font-mono text-sm">{report.patientInfo.idNumber}</div>
                   </div>
                 )}
-                {report.patient_info.phone && (
+                {report.patientInfo.phone && (
                   <div>
-                    <div className="text-xs text-slate-500 mb-1">Số điện thoại BN</div>
-                    <div className="font-medium">{report.patient_info.phone}</div>
+                    <div className="text-xs text-slate-500 mb-1">SĐT Bệnh nhân</div>
+                    <div className="font-medium">{report.patientInfo.phone}</div>
                   </div>
                 )}
-                {report.patient_info.occupation && (
+                {report.patientInfo.occupation && (
                   <div>
                     <div className="text-xs text-slate-500 mb-1">Nghề nghiệp</div>
-                    <div className="font-medium">{report.patient_info.occupation}</div>
+                    <div className="font-medium">{report.patientInfo.occupation}</div>
                   </div>
                 )}
               </div>
-
-              {/* Address */}
-              {report.patient_info.address && (
+              {report.patientInfo.address && (
                 <div className="mb-4">
                   <div className="text-xs text-slate-500 mb-1">Địa chỉ thường trú</div>
-                  <div className="font-medium">{report.patient_info.address}</div>
+                  <div className="font-medium">{report.patientInfo.address}</div>
                 </div>
               )}
-
-              {/* Workplace */}
-              {report.patient_info.workplace && (
+              {report.patientInfo.workplace && (
                 <div className="mb-4">
                   <div className="text-xs text-slate-500 mb-1">Nơi làm việc/học tập</div>
-                  <div className="font-medium">{report.patient_info.workplace}</div>
+                  <div className="font-medium">{report.patientInfo.workplace}</div>
                 </div>
               )}
-
               {/* Medical Info */}
               <div className="border-t border-orange-200 pt-4 mt-4">
                 <h4 className="font-medium text-slate-700 mb-3">📋 Thông tin y tế</h4>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {report.patient_info.symptomOnsetDate && (
+                  {report.patientInfo.symptomOnsetDate && (
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Ngày khởi phát</div>
                       <div className="font-medium">
-                        {new Date(report.patient_info.symptomOnsetDate).toLocaleDateString('vi-VN')}
+                        {new Date(report.patientInfo.symptomOnsetDate).toLocaleDateString('vi-VN')}
                       </div>
                     </div>
                   )}
-                  {report.patient_info.healthFacility && (
+                  {report.patientInfo.healthFacility && (
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Cơ sở y tế</div>
-                      <div className="font-medium">{report.patient_info.healthFacility}</div>
+                      <div className="font-medium">{report.patientInfo.healthFacility}</div>
                     </div>
                   )}
                   <div>
                     <div className="text-xs text-slate-500 mb-1">Nhập viện</div>
                     <div className="font-medium">
-                      {report.patient_info.isHospitalized ? (
+                      {report.patientInfo.isHospitalized ? (
                         <span className="badge badge-error">Đang nhập viện</span>
                       ) : (
                         <span className="badge bg-slate-100 text-slate-600">Không</span>
@@ -990,34 +1116,31 @@ function ReviewModal({
                     </div>
                   </div>
                 </div>
-
-                {/* Underlying conditions */}
-                {report.patient_info.underlyingConditions && report.patient_info.underlyingConditions.length > 0 && (
+                {report.patientInfo.underlyingConditions && report.patientInfo.underlyingConditions.length > 0 && (
                   <div className="mt-4">
                     <div className="text-xs text-slate-500 mb-2">Bệnh nền</div>
                     <div className="flex flex-wrap gap-2">
-                      {report.patient_info.underlyingConditions.map((condition, idx) => (
-                        <span key={idx} className="badge bg-red-100 text-red-700">{condition}</span>
+                      {report.patientInfo.underlyingConditions.map((c, i) => (
+                        <span key={i} className="badge bg-red-100 text-red-700">{c}</span>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* Contact & Travel History */}
-              {(report.patient_info.travelHistory || report.patient_info.contactHistory) && (
+              {/* Travel & Contact History */}
+              {(report.patientInfo.travelHistory || report.patientInfo.contactHistory) && (
                 <div className="border-t border-orange-200 pt-4 mt-4">
                   <h4 className="font-medium text-slate-700 mb-3">🔍 Lịch sử dịch tễ</h4>
-                  {report.patient_info.travelHistory && (
+                  {report.patientInfo.travelHistory && (
                     <div className="mb-3">
                       <div className="text-xs text-slate-500 mb-1">Lịch sử di chuyển (14 ngày)</div>
-                      <div className="p-3 bg-white rounded-lg text-sm">{report.patient_info.travelHistory}</div>
+                      <div className="p-3 bg-white rounded-lg text-sm">{report.patientInfo.travelHistory}</div>
                     </div>
                   )}
-                  {report.patient_info.contactHistory && (
+                  {report.patientInfo.contactHistory && (
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Lịch sử tiếp xúc</div>
-                      <div className="p-3 bg-white rounded-lg text-sm">{report.patient_info.contactHistory}</div>
+                      <div className="p-3 bg-white rounded-lg text-sm">{report.patientInfo.contactHistory}</div>
                     </div>
                   )}
                 </div>
@@ -1025,72 +1148,197 @@ function ReviewModal({
             </div>
           )}
 
-          {/* Review Section */}
-          <div className="card p-4">
-            <h3 className="font-semibold text-slate-800 mb-4">✍️ Đánh giá báo cáo</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Trạng thái duyệt</label>
-                <select 
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ReportStatus)}
-                  className="input w-full"
-                >
-                  {Object.entries(REPORT_STATUS_CONFIG).map(([key, config]) => (
-                    <option key={key} value={key}>{config.icon} {config.labelVi}</option>
-                  ))}
-                </select>
+          {/* Verification Trail */}
+          {(report.autoVerifiedAt || report.preliminaryReviewAt || report.fieldVerifiedAt || report.officialConfirmAt) && (
+            <div className="card p-4 mb-4">
+              <h3 className="font-semibold text-slate-800 mb-3">📜 Quá trình xác minh</h3>
+              <div className="space-y-3">
+                {report.autoVerifiedAt && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-sm">🤖</div>
+                    <div>
+                      <div className="text-sm font-medium">Xác nhận tự động</div>
+                      <div className="text-xs text-slate-500">{getTimeAgo(report.autoVerifiedAt)}</div>
+                    </div>
+                  </div>
+                )}
+                {report.preliminaryReviewAt && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm">🔍</div>
+                    <div>
+                      <div className="text-sm font-medium">Xem xét sơ bộ: {report.preliminaryReviewResult}</div>
+                      <div className="text-xs text-slate-500">{getTimeAgo(report.preliminaryReviewAt)}</div>
+                      {report.preliminaryReviewNote && <div className="text-xs text-slate-600 mt-1">{report.preliminaryReviewNote}</div>}
+                    </div>
+                  </div>
+                )}
+                {report.fieldVerifiedAt && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-sm">🏥</div>
+                    <div>
+                      <div className="text-sm font-medium">Xác minh thực địa: {report.fieldVerificationResult}</div>
+                      <div className="text-xs text-slate-500">{getTimeAgo(report.fieldVerifiedAt)}</div>
+                      {report.fieldVerificationNote && <div className="text-xs text-slate-600 mt-1">{report.fieldVerificationNote}</div>}
+                    </div>
+                  </div>
+                )}
+                {report.officialConfirmAt && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm">✅</div>
+                    <div>
+                      <div className="text-sm font-medium">Xác nhận chính thức: {report.officialClassification}</div>
+                      <div className="text-xs text-slate-500">{getTimeAgo(report.officialConfirmAt)}</div>
+                      {report.officialConfirmNote && <div className="text-xs text-slate-600 mt-1">{report.officialConfirmNote}</div>}
+                    </div>
+                  </div>
+                )}
+                {report.closedAt && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm">📁</div>
+                    <div>
+                      <div className="text-sm font-medium">Đóng: {report.closureAction}</div>
+                      <div className="text-xs text-slate-500">{getTimeAgo(report.closedAt)}</div>
+                      {report.closureNote && <div className="text-xs text-slate-600 mt-1">{report.closureNote}</div>}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Xác thực</label>
-                <select 
-                  value={verification}
-                  onChange={(e) => setVerification(e.target.value as VerificationStatus)}
-                  className="input w-full"
-                >
-                  {Object.entries(VERIFICATION_STATUS_CONFIG).map(([key, config]) => (
-                    <option key={key} value={key}>{config.icon} {config.labelVi}</option>
-                  ))}
-                </select>
+            </div>
+          )}
+
+          {/* Status History */}
+          {statusHistory.length > 0 && (
+            <div className="card p-4 mb-4">
+              <h3 className="font-semibold text-slate-800 mb-3">📋 Lịch sử trạng thái</h3>
+              <div className="space-y-2">
+                {statusHistory.map((entry) => {
+                  const newConfig = getReportStatusConfig(entry.newStatus);
+                  return (
+                    <div key={entry.id} className="flex items-center gap-3 text-sm">
+                      <span className="text-xs text-slate-400 min-w-[100px]">{getTimeAgo(entry.createdAt)}</span>
+                      {entry.previousStatus && (
+                        <>
+                          <span className="badge bg-slate-100 text-slate-600 text-xs">{getReportStatusConfig(entry.previousStatus).labelVi}</span>
+                          <span className="text-slate-400">→</span>
+                        </>
+                      )}
+                      <span className="badge bg-emerald-100 text-emerald-700 text-xs">{newConfig.icon} {newConfig.labelVi}</span>
+                      {entry.note && <span className="text-slate-500 text-xs italic">- {entry.note}</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú duyệt</label>
-              <textarea 
-                value={reviewNotes}
-                onChange={(e) => setReviewNotes(e.target.value)}
-                className="input w-full min-h-[80px] resize-none"
-                placeholder="Nhập ghi chú về quyết định duyệt..."
-              />
+          )}
+
+          {/* Workflow Action Section */}
+          {actions.length > 0 && (
+            <div className="card p-4 border-2 border-emerald-200 bg-emerald-50">
+              <h3 className="font-semibold text-slate-800 mb-4">✍️ Hành động tiếp theo</h3>
+              
+              {/* Action tabs */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {actions.map(a => (
+                  <button
+                    key={a.key}
+                    onClick={() => { setActiveAction(a.key); setNote(''); }}
+                    className={`btn text-sm ${activeAction === a.key ? `${a.color} text-white` : 'bg-white border border-slate-200 text-slate-700'}`}
+                  >
+                    {a.icon} {a.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Action form */}
+              {activeAction === 'preliminary-review' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Kết quả xem xét sơ bộ</label>
+                    <select value={preliminaryResult} onChange={e => setPreliminaryResult(e.target.value as PreliminaryResult)} className="input w-full">
+                      <option value="valid">✅ Hợp lệ - Chuyển xác nhận</option>
+                      <option value="need_field_check">🏥 Cần kiểm tra thực địa</option>
+                      <option value="invalid">❌ Không hợp lệ - Từ chối</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} className="input w-full min-h-[80px] resize-none" placeholder="Nhập ghi chú xem xét..." />
+                  </div>
+                </div>
+              )}
+
+              {activeAction === 'field-verify' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Kết quả xác minh thực địa</label>
+                    <select value={fieldResult} onChange={e => setFieldResult(e.target.value as FieldVerificationResult)} className="input w-full">
+                      <option value="confirmed_suspected">✅ Xác nhận nghi ngờ - Phù hợp</option>
+                      <option value="not_disease">❌ Không phải bệnh</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú thực địa</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} className="input w-full min-h-[80px] resize-none" placeholder="Nhập ghi chú từ thực địa..." />
+                  </div>
+                </div>
+              )}
+
+              {activeAction === 'official-confirm' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Phân loại chính thức</label>
+                    <select value={classification} onChange={e => setClassification(e.target.value as OfficialClassification)} className="input w-full">
+                      <option value="suspected">🟡 Nghi ngờ (Suspected)</option>
+                      <option value="probable">🟠 Có thể (Probable)</option>
+                      <option value="confirmed">🔴 Xác nhận (Confirmed)</option>
+                      <option value="false_alarm">⚪ Báo động giả (False alarm)</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="createCase" checked={createCase} onChange={e => setCreateCase(e.target.checked)} className="w-4 h-4" />
+                    <label htmlFor="createCase" className="text-sm text-slate-700">Tạo ca bệnh trên GIS</label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} className="input w-full min-h-[80px] resize-none" placeholder="Nhập ghi chú xác nhận..." />
+                  </div>
+                </div>
+              )}
+
+              {activeAction === 'close' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Hành động đóng</label>
+                    <select value={closureAction} onChange={e => setClosureAction(e.target.value as ClosureAction)} className="input w-full">
+                      <option value="monitoring">👁️ Theo dõi (Monitoring)</option>
+                      <option value="isolation">🔒 Cách ly (Isolation)</option>
+                      <option value="area_warning">⚠️ Cảnh báo khu vực (Area Warning)</option>
+                      <option value="no_action">❌ Không hành động</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú đóng</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} className="input w-full min-h-[80px] resize-none" placeholder="Nhập ghi chú khi đóng báo cáo..." />
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú xác thực</label>
-              <textarea 
-                value={verificationNotes}
-                onChange={(e) => setVerificationNotes(e.target.value)}
-                className="input w-full min-h-[80px] resize-none"
-                placeholder="Nhập ghi chú về xác thực..."
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="p-6 border-t border-slate-200 flex items-center justify-end gap-3 bg-slate-50">
           <button onClick={onClose} className="btn bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
-            Hủy
+            Đóng
           </button>
-          <button 
-            onClick={() => onSubmit({
-              report_status: status,
-              verification_status: verification,
-              review_notes: reviewNotes,
-              verification_notes: verificationNotes,
-            })}
-            className="btn bg-emerald-500 text-white hover:bg-emerald-600"
-          >
-            💾 Lưu thay đổi
-          </button>
+          {activeAction && (
+            <button 
+              onClick={handleSubmit}
+              className="btn bg-emerald-500 text-white hover:bg-emerald-600"
+            >
+              💾 Xác nhận
+            </button>
+          )}
         </div>
       </div>
     </div>

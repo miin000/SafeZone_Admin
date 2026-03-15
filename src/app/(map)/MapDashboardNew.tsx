@@ -155,28 +155,32 @@ export default function MapDashboard() {
   const handleQuickFilter = (filter: string) => {
     setQuickFilter(filter);
     const now = new Date();
-    
+
     switch (filter) {
-      case 'today':
+      case 'today': {
         const today = now.toISOString().split('T')[0];
         setFrom(today);
         setTo(today);
         break;
-      case 'week':
+      }
+      case 'week': {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         setFrom(weekAgo.toISOString().split('T')[0]);
         setTo(now.toISOString().split('T')[0]);
         break;
-      case 'month':
+      }
+      case 'month': {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         setFrom(monthAgo.toISOString().split('T')[0]);
         setTo(now.toISOString().split('T')[0]);
         break;
-      case 'year':
+      }
+      case 'year': {
         const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         setFrom(yearAgo.toISOString().split('T')[0]);
         setTo(now.toISOString().split('T')[0]);
         break;
+      }
       case 'all':
       default:
         setFrom('');
@@ -197,7 +201,7 @@ export default function MapDashboard() {
     setZoneModalOpen(true);
   }, []);
 
-  // Handle zone toggle
+  // Handle zone toggle from map
   const handleToggleZoneActive = useCallback(async (zone: Zone) => {
     if (!confirm(`Bạn có chắc muốn ${zone.isActive ? 'tắt' : 'bật'} vùng dịch "${zone.name}"?`)) {
       return;

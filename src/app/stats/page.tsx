@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
 import type { Stats, DiseaseStat, StatusStat, WeekStat, RegionStat } from '@/types';
 import { 
   getDiseaseColor, 
@@ -14,21 +16,10 @@ import {
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
-// Navigation items
-const navItems = [
-  { href: '/', icon: '🗺️', label: 'Dashboard' },
-  { href: '/stats', icon: '📊', label: 'Statistics' },
-  { href: '/admin/reports', icon: '📋', label: 'Reports' },
-  { href: '/admin', icon: '🏥', label: 'Cases' },
-  { href: '/admin/zones', icon: '🚨', label: 'Zones' },
-  { href: '/admin/posts', icon: '💬', label: 'Posts' },
-  { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
-  { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
-  { href: '/admin/users', icon: '👥', label: 'Users' },
-];
+// Shared navigation items
+const navItems = ADMIN_NAV_ITEMS;
 
 export default function StatsPage() {
-  const pathname = usePathname();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -76,62 +67,25 @@ export default function StatsPage() {
   const maxWeekValue = Math.max(...weeklyData.map(d => d.value), 1);
 
   return (
-    <div style={containerStyle}>
-      {/* Left Sidebar */}
-      <aside style={{
-        ...sidebarStyle,
-        width: sidebarCollapsed ? 72 : 240,
-      }}>
-        <div style={logoContainerStyle}>
-          <Link href="/" style={logoStyle}>
-            <span style={{ fontSize: 26 }}>🛡️</span>
-            {!sidebarCollapsed && <span style={logoTextStyle}>SafeZone</span>}
-          </Link>
-        </div>
+    <div className="flex">
+      <Sidebar navItems={navItems} />
 
-        <nav style={navStyle}>
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                style={{
-                  ...navItemStyle,
-                  background: isActive ? 'linear-gradient(90deg, #10b981, #059669)' : 'transparent',
-                  color: isActive ? '#fff' : '#64748b',
-                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                }}
-              >
-                <span style={{ fontSize: 16, minWidth: 22 }}>{item.icon}</span>
-                {!sidebarCollapsed && <span style={{ fontSize: 13 }}>{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
+      <main className="flex-1 ml-64">
+        <Header />
 
-        <div style={{ padding: '12px', borderTop: '1px solid #e2e8f0' }}>
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={collapseButtonStyle}>
-            {sidebarCollapsed ? '▶' : '◀'}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div style={{
-        ...mainContentStyle,
-        marginLeft: sidebarCollapsed ? 72 : 240,
-      }}>
-        {/* Header */}
-        <header style={headerStyle}>
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
           <div>
-            <h1 style={pageTitleStyle}>📊 Statistics</h1>
-            <p style={pageSubtitleStyle}>Phân tích số liệu & xu hướng dịch bệnh</p>
+            <h1 className="text-2xl font-bold text-slate-800">📊 Statistics</h1>
+            <p className="text-sm text-slate-500">Phân tích số liệu & xu hướng dịch bệnh</p>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <Link href="/" style={headerButtonStyle}>🗺️ Bản đồ</Link>
+          <div className="flex gap-3">
+            <Link href="/" className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white hover:bg-slate-50">
+              🗺️ Bản đồ
+            </Link>
           </div>
-        </header>
+        </div>
+
+        <div className="p-6 bg-slate-50 min-h-[calc(100vh-200px)]">
 
         {/* Filters */}
         <div style={filtersContainerStyle}>
@@ -173,239 +127,221 @@ export default function StatsPage() {
             />
           </div>
           <div style={filterGroupStyle}>
-            <label style={filterLabelStyle}>Đến ngày</label>
-            <input 
-              type="date" 
-              value={dateRange.to}
-              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-              style={selectStyle}
-            />
-          </div>
-          {(selectedDisease !== 'ALL' || selectedProvince !== 'ALL' || dateRange.from || dateRange.to) && (
-            <button 
-              onClick={() => { setSelectedDisease('ALL'); setSelectedProvince('ALL'); setDateRange({ from: '', to: '' }); }}
-              style={resetButtonStyle}
-            >
-              🔄 Reset
-            </button>
-          )}
-        </div>
-
-        {loading ? (
-          <div style={loadingContainerStyle}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
-            <div>Đang tải dữ liệu...</div>
-          </div>
-        ) : (
-          <div style={contentGridStyle}>
-            {/* Row 1 - Summary Cards */}
-            <div style={summaryCardsGridStyle}>
-              <SummaryCard 
-                icon="🏥" 
-                label="Total Cases" 
-                value={summary?.total_cases ?? 0}
-                color="#3b82f6"
-              />
-              <SummaryCard 
-                icon="🚨" 
-                label="Active Cases" 
-                value={activeCases}
-                color="#dc2626"
-                highlight
-              />
-              <SummaryCard 
-                icon="✅" 
-                label="Recovered" 
-                value={(byStatus || []).filter(s => s.status === 'recovered').reduce((sum, s) => sum + s.total, 0)}
-                color="#22c55e"
-              />
-              <SummaryCard 
-                icon="⚠️" 
-                label="High Severity" 
-                value={summary?.high_severity ?? 0}
-                color="#f59e0b"
-              />
-            </div>
-
-            {/* Row 2 - Line Chart & Bar Chart */}
-            <div style={chartsRowStyle}>
-              {/* Line Chart - Cases over time */}
-              <div style={chartCardStyle}>
-                <div style={chartTitleStyle}>📈 Số ca theo thời gian</div>
-                {weeklyData.length > 0 ? (
-                  <div style={{ marginTop: 20, height: 200, position: 'relative' }}>
-                    <svg width="100%" height="200" viewBox="0 0 500 200" preserveAspectRatio="xMidYMid meet">
-                      {/* Grid lines */}
-                      {[0, 1, 2, 3, 4].map(i => (
-                        <line key={i} x1="50" y1={20 + i * 40} x2="480" y2={20 + i * 40} stroke="#e2e8f0" strokeWidth="1" />
-                      ))}
-                      {/* Area */}
-                      <path
-                        d={`M 50 ${180 - (weeklyData[0]?.value / maxWeekValue) * 160} ${weeklyData.map((d, i) => `L ${50 + (i / (weeklyData.length - 1 || 1)) * 430} ${180 - (d.value / maxWeekValue) * 160}`).join(' ')} L ${50 + 430} 180 L 50 180 Z`}
-                        fill="rgba(59, 130, 246, 0.1)"
-                      />
-                      {/* Line */}
-                      <path
-                        d={`M ${weeklyData.map((d, i) => `${50 + (i / (weeklyData.length - 1 || 1)) * 430} ${180 - (d.value / maxWeekValue) * 160}`).join(' L ')}`}
-                        fill="none"
-                        stroke="#3b82f6"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      {/* Points */}
-                      {weeklyData.map((d, i) => (
-                        <circle
-                          key={i}
-                          cx={50 + (i / (weeklyData.length - 1 || 1)) * 430}
-                          cy={180 - (d.value / maxWeekValue) * 160}
-                          r="5"
-                          fill="#3b82f6"
-                          stroke="#fff"
-                          strokeWidth="2"
-                        >
-                          <title>{`${d.label}: ${d.value} ca`}</title>
-                        </circle>
-                      ))}
-                      {/* X labels */}
-                      {weeklyData.filter((_, i) => i % Math.ceil(weeklyData.length / 6) === 0).map((d, i, arr) => (
-                        <text 
-                          key={i} 
-                          x={50 + (weeklyData.indexOf(d) / (weeklyData.length - 1 || 1)) * 430} 
-                          y="198" 
-                          textAnchor="middle" 
-                          fill="#64748b" 
-                          fontSize="11"
-                        >
-                          {d.label}
-                        </text>
-                      ))}
-                      {/* Y labels */}
-                      {[0, 0.25, 0.5, 0.75, 1].map((t, i) => (
-                        <text key={i} x="45" y={180 - t * 160 + 4} textAnchor="end" fill="#64748b" fontSize="11">
-                          {Math.round(maxWeekValue * t)}
-                        </text>
-                      ))}
-                    </svg>
-                  </div>
-                ) : (
-                  <div style={emptyStateStyle}>Không có dữ liệu</div>
-                )}
+            {loading ? (
+              <div style={loadingContainerStyle}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+                <div>Đang tải dữ liệu...</div>
               </div>
+            ) : (
+              <div style={contentGridStyle}>
+                {/* Row 1 - Summary Cards */}
+                <div style={summaryCardsGridStyle}>
+                  <SummaryCard 
+                    icon="🏥" 
+                    label="Total Cases" 
+                    value={summary?.total_cases ?? 0}
+                    color="#3b82f6"
+                  />
+                  <SummaryCard 
+                    icon="🚨" 
+                    label="Active Cases" 
+                    value={activeCases}
+                    color="#dc2626"
+                    highlight
+                  />
+                  <SummaryCard 
+                    icon="✅" 
+                    label="Recovered" 
+                    value={(byStatus || []).filter(s => s.status === 'recovered').reduce((sum, s) => sum + s.total, 0)}
+                    color="#22c55e"
+                  />
+                  <SummaryCard 
+                    icon="⚠️" 
+                    label="High Severity" 
+                    value={summary?.high_severity ?? 0}
+                    color="#f59e0b"
+                  />
+                </div>
 
-              {/* Bar Chart - By Disease */}
-              <div style={chartCardStyle}>
-                <div style={chartTitleStyle}>🦠 Theo loại bệnh</div>
-                <div style={{ marginTop: 20 }}>
-                  {(byDisease || []).slice(0, 6).map((d) => (
-                    <div key={d.disease_type} style={{ marginBottom: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, color: '#475569' }}>{getBilingualDiseaseLabel(d.disease_type)}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: getDiseaseColor(d.disease_type) }}>{d.total}</span>
+                {/* Row 2 - Line Chart & Bar Chart */}
+                <div style={chartsRowStyle}>
+                  {/* Line Chart - Cases over time */}
+                  <div style={chartCardStyle}>
+                    <div style={chartTitleStyle}>📈 Số ca theo thời gian</div>
+                    {weeklyData.length > 0 ? (
+                      <div style={{ marginTop: 20, height: 200, position: 'relative' }}>
+                        <svg width="100%" height="200" viewBox="0 0 500 200" preserveAspectRatio="xMidYMid meet">
+                          {/* Grid lines */}
+                          {[0, 1, 2, 3, 4].map(i => (
+                            <line key={i} x1="50" y1={20 + i * 40} x2="480" y2={20 + i * 40} stroke="#e2e8f0" strokeWidth="1" />
+                          ))}
+                          {/* Area */}
+                          <path
+                            d={`M 50 ${180 - (weeklyData[0]?.value / maxWeekValue) * 160} ${weeklyData.map((d, i) => `L ${50 + (i / (weeklyData.length - 1 || 1)) * 430} ${180 - (d.value / maxWeekValue) * 160}`).join(' ')} L ${50 + 430} 180 L 50 180 Z`}
+                            fill="rgba(59, 130, 246, 0.1)"
+                          />
+                          {/* Line */}
+                          <path
+                            d={`M ${weeklyData.map((d, i) => `${50 + (i / (weeklyData.length - 1 || 1)) * 430} ${180 - (d.value / maxWeekValue) * 160}`).join(' L ')}`}
+                            fill="none"
+                            stroke="#3b82f6"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          {/* Points */}
+                          {weeklyData.map((d, i) => (
+                            <circle
+                              key={i}
+                              cx={50 + (i / (weeklyData.length - 1 || 1)) * 430}
+                              cy={180 - (d.value / maxWeekValue) * 160}
+                              r="5"
+                              fill="#3b82f6"
+                              stroke="#fff"
+                              strokeWidth="2"
+                            >
+                              <title>{`${d.label}: ${d.value} ca`}</title>
+                            </circle>
+                          ))}
+                          {/* X labels */}
+                          {weeklyData.filter((_, i) => i % Math.ceil(weeklyData.length / 6) === 0).map((d, i, arr) => (
+                            <text 
+                              key={i} 
+                              x={50 + (weeklyData.indexOf(d) / (weeklyData.length - 1 || 1)) * 430} 
+                              y="198" 
+                              textAnchor="middle" 
+                              fill="#64748b" 
+                              fontSize="11"
+                            >
+                              {d.label}
+                            </text>
+                          ))}
+                          {/* Y labels */}
+                          {[0, 0.25, 0.5, 0.75, 1].map((t, i) => (
+                            <text key={i} x="45" y={180 - t * 160 + 4} textAnchor="end" fill="#64748b" fontSize="11">
+                              {Math.round(maxWeekValue * t)}
+                            </text>
+                          ))}
+                        </svg>
                       </div>
-                      <div style={progressBgStyle}>
+                    ) : (
+                      <div style={emptyStateStyle}>Không có dữ liệu</div>
+                    )}
+                  </div>
+
+                  {/* Bar Chart - By Disease */}
+                  <div style={chartCardStyle}>
+                    <div style={chartTitleStyle}>🦠 Theo loại bệnh</div>
+                    <div style={{ marginTop: 20 }}>
+                      {(byDisease || []).slice(0, 6).map((d) => (
+                        <div key={d.disease_type} style={{ marginBottom: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, color: '#475569' }}>{getBilingualDiseaseLabel(d.disease_type)}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: getDiseaseColor(d.disease_type) }}>{d.total}</span>
+                          </div>
+                          <div style={progressBgStyle}>
+                            <div style={{ 
+                              ...progressFillStyle,
+                              width: `${(d.total / maxDiseaseValue) * 100}%`,
+                              background: `linear-gradient(90deg, ${getDiseaseColor(d.disease_type)}, ${getDiseaseColor(d.disease_type)}99)`,
+                            }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* By Region Pie */}
+                <div style={chartCardStyle}>
+                  <div style={chartTitleStyle}>🏛️ Theo vùng / mức độ nguy hiểm</div>
+                  <div style={{ display: 'flex', gap: 32, marginTop: 20 }}>
+                    {/* Severity Distribution */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 12 }}>Mức độ nặng</div>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <SeverityBadge label="Nặng" value={summary?.high_severity ?? 0} total={summary?.total_cases ?? 1} color={SEVERITY_COLORS[3]} />
+                        <SeverityBadge label="TB" value={summary?.medium_severity ?? 0} total={summary?.total_cases ?? 1} color={SEVERITY_COLORS[2]} />
+                        <SeverityBadge label="Nhẹ" value={summary?.low_severity ?? 0} total={summary?.total_cases ?? 1} color={SEVERITY_COLORS[1]} />
+                      </div>
+                    </div>
+                    {/* Top Regions */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 12 }}>Top vùng dịch</div>
+                      {(topRegions || []).slice(0, 5).map((r, idx) => (
+                        <div key={r.id} style={regionItemStyle}>
+                          <span style={{
+                            ...rankStyle,
+                            background: idx < 3 ? ['#ffd700', '#c0c0c0', '#cd7f32'][idx] : '#e5e7eb',
+                          }}>{idx + 1}</span>
+                          <span style={{ flex: 1, fontSize: 12, color: '#475569' }}>{r.name}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: idx < 3 ? '#dc2626' : '#1e293b' }}>{r.total}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Distribution */}
+                <div style={chartCardStyle}>
+                  <div style={chartTitleStyle}>📊 Theo trạng thái</div>
+                  <div style={{ marginTop: 20 }}>
+                    {(byStatus || []).slice(0, 6).map((s) => {
+                      const percent = summary?.total_cases ? (s.total / summary.total_cases) * 100 : 0;
+                      return (
+                        <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                          <span style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            background: getStatusColor(s.status),
+                            flexShrink: 0,
+                          }} />
+                          <span style={{ flex: 1, fontSize: 12, color: '#475569' }}>{getBilingualStatusLabel(s.status)}</span>
+                          <span style={{ fontSize: 12, color: '#94a3b8', minWidth: 40 }}>{percent.toFixed(0)}%</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: getStatusColor(s.status), minWidth: 40, textAlign: 'right' }}>{s.total}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 30-Day Comparison */}
+                {comparison && (
+                  <div style={comparisonCardStyle}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ fontSize: 32 }}>📅</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, color: '#64748b', marginBottom: 4 }}>30 ngày qua</div>
+                        <div style={{ fontSize: 32, fontWeight: 800, color: '#1e293b' }}>{comparison.current_period} ca</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 14, color: '#64748b', marginBottom: 4 }}>So với kỳ trước</div>
                         <div style={{ 
-                          ...progressFillStyle,
-                          width: `${(d.total / maxDiseaseValue) * 100}%`,
-                          background: `linear-gradient(90deg, ${getDiseaseColor(d.disease_type)}, ${getDiseaseColor(d.disease_type)}99)`,
-                        }} />
+                          fontSize: 24, 
+                          fontWeight: 700,
+                          color: comparison.current_period > comparison.previous_period ? '#dc2626' : '#22c55e',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          gap: 4,
+                        }}>
+                          {comparison.current_period > comparison.previous_period ? '↑' : '↓'}
+                          {Math.abs(comparison.current_period - comparison.previous_period)} ca
+                          <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>
+                            ({comparison.previous_period} trước đó)
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3 - Pie Charts */}
-            <div style={chartsRowStyle}>
-              {/* By Region Pie */}
-              <div style={chartCardStyle}>
-                <div style={chartTitleStyle}>🏛️ Theo vùng / mức độ nguy hiểm</div>
-                <div style={{ display: 'flex', gap: 32, marginTop: 20 }}>
-                  {/* Severity Distribution */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 12 }}>Mức độ nặng</div>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <SeverityBadge label="Nặng" value={summary?.high_severity ?? 0} total={summary?.total_cases ?? 1} color={SEVERITY_COLORS[3]} />
-                      <SeverityBadge label="TB" value={summary?.medium_severity ?? 0} total={summary?.total_cases ?? 1} color={SEVERITY_COLORS[2]} />
-                      <SeverityBadge label="Nhẹ" value={summary?.low_severity ?? 0} total={summary?.total_cases ?? 1} color={SEVERITY_COLORS[1]} />
-                    </div>
                   </div>
-                  {/* Top Regions */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 12 }}>Top vùng dịch</div>
-                    {(topRegions || []).slice(0, 5).map((r, idx) => (
-                      <div key={r.id} style={regionItemStyle}>
-                        <span style={{
-                          ...rankStyle,
-                          background: idx < 3 ? ['#ffd700', '#c0c0c0', '#cd7f32'][idx] : '#e5e7eb',
-                        }}>{idx + 1}</span>
-                        <span style={{ flex: 1, fontSize: 12, color: '#475569' }}>{r.name}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: idx < 3 ? '#dc2626' : '#1e293b' }}>{r.total}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Distribution */}
-              <div style={chartCardStyle}>
-                <div style={chartTitleStyle}>📊 Theo trạng thái</div>
-                <div style={{ marginTop: 20 }}>
-                  {(byStatus || []).slice(0, 6).map((s) => {
-                    const percent = summary?.total_cases ? (s.total / summary.total_cases) * 100 : 0;
-                    return (
-                      <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                        <span style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          background: getStatusColor(s.status),
-                          flexShrink: 0,
-                        }} />
-                        <span style={{ flex: 1, fontSize: 12, color: '#475569' }}>{getBilingualStatusLabel(s.status)}</span>
-                        <span style={{ fontSize: 12, color: '#94a3b8', minWidth: 40 }}>{percent.toFixed(0)}%</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: getStatusColor(s.status), minWidth: 40, textAlign: 'right' }}>{s.total}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* 30-Day Comparison */}
-            {comparison && (
-              <div style={comparisonCardStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ fontSize: 32 }}>📅</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, color: '#64748b', marginBottom: 4 }}>30 ngày qua</div>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: '#1e293b' }}>{comparison.current_period} ca</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 14, color: '#64748b', marginBottom: 4 }}>So với kỳ trước</div>
-                    <div style={{ 
-                      fontSize: 24, 
-                      fontWeight: 700,
-                      color: comparison.current_period > comparison.previous_period ? '#dc2626' : '#22c55e',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      gap: 4,
-                    }}>
-                      {comparison.current_period > comparison.previous_period ? '↑' : '↓'}
-                      {Math.abs(comparison.current_period - comparison.previous_period)} ca
-                      <span style={{ fontSize: 14, color: '#94a3b8', marginLeft: 8 }}>
-                        ({comparison.previous_period} trước đó)
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
+      </main>
     </div>
   );
 }

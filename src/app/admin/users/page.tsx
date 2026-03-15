@@ -1,24 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
-// Navigation items
-const navItems = [
-  { href: '/', icon: '🗺️', label: 'Dashboard' },
-  { href: '/stats', icon: '📊', label: 'Statistics' },
-  { href: '/admin/reports', icon: '📋', label: 'Reports' },
-  { href: '/admin', icon: '🏥', label: 'Cases' },
-  { href: '/admin/zones', icon: '🚨', label: 'Zones' },
-  { href: '/admin/posts', icon: '💬', label: 'Posts' },
-  { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
-  { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
-  { href: '/admin/users', icon: '👥', label: 'Users' },
-  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
-];
+// Use shared navigation items
+const navItems = ADMIN_NAV_ITEMS;
 
 interface User {
   id: string;
@@ -32,9 +23,19 @@ interface User {
   lastLoginAt?: string;
 }
 
+type StaffRole = 'health_authority' | 'admin';
+
+interface UserFormData {
+  email: string;
+  password: string;
+  name: string;
+  phone: string;
+  role: StaffRole;
+  isActive: boolean;
+}
+
 export default function UsersPage() {
-  const pathname = usePathname();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
@@ -43,12 +44,12 @@ export default function UsersPage() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<UserFormData>({
     email: '',
     password: '',
     name: '',
     phone: '',
-    role: 'user' as 'user' | 'health_authority' | 'admin',
+    role: 'health_authority',
     isActive: true,
   });
 
@@ -63,9 +64,14 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const url = roleFilter !== 'ALL' 
-        ? `${API}/admin/users?role=${roleFilter}` 
-        : `${API}/admin/users`;
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const url = roleFilter !== 'ALL'
+        ? `${API}/admin/users/staff?role=${roleFilter}`
+        : `${API}/admin/users/staff`;
       
       const response = await fetch(url, {
         headers: {
@@ -75,10 +81,19 @@ export default function UsersPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        setUsers(Array.isArray(data) ? data : data.data || []);
+      } else if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        router.push('/login');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || 'Không thể tải danh sách tài khoản');
       }
     } catch (error) {
       console.error('Failed to load users:', error);
+      alert('Lỗi kết nối khi tải danh sách tài khoản');
     } finally {
       setLoading(false);
     }
@@ -86,7 +101,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadUsers();
-  }, [roleFilter]);
+  }, [roleFilter, router]);
 
   // Load current user info
   useEffect(() => {
@@ -106,6 +121,10 @@ export default function UsersPage() {
     
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const url = editingUser 
         ? `${API}/admin/users/${editingUser.id}` 
         : `${API}/admin/users`;
@@ -113,7 +132,7 @@ export default function UsersPage() {
       const method = editingUser ? 'PUT' : 'POST';
       
       // Don't send password if empty on edit
-      let payload: any = { ...formData };
+      let payload: Partial<UserFormData> = { ...formData };
       if (editingUser && !formData.password) {
         const { password, ...rest } = formData;
         payload = rest;
@@ -132,6 +151,11 @@ export default function UsersPage() {
         loadUsers();
         setModalOpen(false);
         resetForm();
+      } else if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        router.push('/login');
       } else {
         const errorData = await response.json();
         alert(errorData.message || 'Failed to save user');
@@ -148,6 +172,10 @@ export default function UsersPage() {
     
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
       const response = await fetch(`${API}/admin/users/${deleteConfirm.userId}`, {
         method: 'DELETE',
         headers: {
@@ -157,6 +185,11 @@ export default function UsersPage() {
 
       if (response.ok) {
         loadUsers();
+      } else if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        router.push('/login');
       } else {
         alert('Failed to delete user');
       }
@@ -175,7 +208,7 @@ export default function UsersPage() {
       password: '',
       name: '',
       phone: '',
-      role: 'user',
+      role: 'health_authority',
       isActive: true,
     });
     setEditingUser(null);
@@ -190,12 +223,16 @@ export default function UsersPage() {
   // Open modal for edit
   const handleEdit = (user: User) => {
     setEditingUser(user);
+    // Only admin and health_authority users are listed, so role is safe to cast
+    const staffRole: StaffRole = (user.role === 'admin' || user.role === 'health_authority') 
+      ? user.role as StaffRole 
+      : 'health_authority';
     setFormData({
       email: user.email,
       password: '',
       name: user.name,
       phone: user.phone,
-      role: user.role,
+      role: staffRole,
       isActive: user.isActive,
     });
     setModalOpen(true);
@@ -220,105 +257,29 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="flex">
       {/* Sidebar */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gradient-to-b from-emerald-600 to-teal-700 text-white flex flex-col shadow-2xl transition-all duration-300`}>
-        <div className="p-4 flex items-center justify-between border-b border-white/20">
-          {!sidebarCollapsed && (
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🏥</span>
-              <span className="font-bold text-lg">SafeZone</span>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1.5 rounded hover:bg-white/10 transition-colors"
-          >
-            {sidebarCollapsed ? '→' : '←'}
-          </button>
-        </div>
-
-        {/* Current User Info */}
-        {currentUser && !sidebarCollapsed && (
-          <div className="px-4 py-3 bg-white/10 border-b border-white/20">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">
-                {currentUser.name?.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{currentUser.name}</div>
-                <div className="text-xs opacity-90 truncate">{currentUser.email}</div>
-              </div>
-            </div>
-            <div className="mt-2">
-              <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                currentUser.role === 'admin' 
-                  ? 'bg-purple-500/30 text-purple-100' 
-                  : currentUser.role === 'health_authority'
-                  ? 'bg-blue-500/30 text-blue-100'
-                  : 'bg-gray-500/30 text-gray-100'
-              }`}>
-                {currentUser.role === 'admin' ? '👑 Admin' : 
-                 currentUser.role === 'health_authority' ? '👨‍⚕️ Cơ quan Y tế' : 
-                 '👤 Người dùng'}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {currentUser && sidebarCollapsed && (
-          <div className="px-2 py-3 bg-white/10 border-b border-white/20 flex justify-center" title={`${currentUser.name} (${currentUser.role})`}>
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
-              {currentUser.name?.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        )}
-
-        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                  isActive
-                    ? 'bg-white text-emerald-700 shadow-md font-medium'
-                    : 'hover:bg-white/10'
-                }`}
-                title={sidebarCollapsed ? item.label : ''}
-              >
-                <span className="text-xl">{item.icon}</span>
-                {!sidebarCollapsed && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-white/20">
-          <button
-            onClick={() => {
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              window.location.href = '/login';
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors"
-            title={sidebarCollapsed ? 'Logout' : ''}
-          >
-            <span className="text-xl">🚪</span>
-            {!sidebarCollapsed && <span>Logout</span>}
-          </button>
-        </div>
-      </div>
+      <Sidebar navItems={navItems} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 ml-64">
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-8 py-4 shadow-sm">
+        <Header />
+
+        {/* Page Title */}
+        <div className="bg-white border-b border-slate-200 px-6 py-4">
+          <h1 className="text-2xl font-bold text-slate-800">👥 Quản lý người dùng</h1>
+          <p className="text-sm text-slate-500">Quản lý tài khoản và quyền truy cập người dùng</p>
+        </div>
+
+        {/* Page Content */}
+        <div className="p-6 bg-slate-50 min-h-[calc(100vh-80px)]">
+          {/* Header */}
+          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Quản lý Tài khoản</h1>
-              <p className="text-sm text-slate-600 mt-1">Quản lý tài khoản người dùng và cơ quan y tế</p>
+              <h1 className="text-xl font-bold text-slate-800">👥 Quản lý tài khoản staff</h1>
+              <p className="text-sm text-slate-500 mt-1">Quản lý tài khoản Admin và Cơ quan y tế</p>
             </div>
             <button
               onClick={handleCreate}
@@ -328,10 +289,10 @@ export default function UsersPage() {
               <span>Tạo tài khoản</span>
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Filters */}
-        <div className="bg-white border-b border-slate-200 px-8 py-4">
+          {/* Filters */}
+          <div className="bg-white border-b border-slate-200 px-8 py-4">
           <div className="flex gap-4 items-center">
             <label className="text-sm font-medium text-slate-700">Vai trò:</label>
             <select
@@ -342,7 +303,6 @@ export default function UsersPage() {
               <option value="ALL">Tất cả</option>
               <option value="admin">Admin</option>
               <option value="health_authority">Cơ quan Y tế</option>
-              <option value="user">Người dùng</option>
             </select>
             <div className="text-sm text-slate-600 ml-auto">
               Tổng: <strong>{users.length}</strong> tài khoản
@@ -350,8 +310,8 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-8">
+          {/* Content */}
+          <div className="flex-1 overflow-auto p-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
@@ -500,11 +460,10 @@ export default function UsersPage() {
                 </label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as StaffRole })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   required
                 >
-                  <option value="user">Người dùng</option>
                   <option value="health_authority">Cơ quan Y tế</option>
                   <option value="admin">Admin</option>
                 </select>
@@ -571,6 +530,7 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
+  </div>
   );
 }

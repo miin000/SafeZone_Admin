@@ -55,16 +55,28 @@ export interface CasesListResponse {
 }
 
 // ============================================
-// REPORT WORKFLOW TYPES
+// REPORT WORKFLOW TYPES (6-stage verification)
 // ============================================
 
-/** Report status from mobile users */
+/** Report status - multi-step verification workflow */
 export type ReportStatus = 
-  | 'pending'       // Chờ duyệt - Awaiting review
-  | 'in_review'     // Đang xem xét - Under review
-  | 'approved'      // Đã duyệt - Approved
-  | 'rejected'      // Từ chối - Rejected
-  | 'needs_info';   // Cần thêm thông tin - Needs more info
+  | 'submitted'           // Đã gửi - Just submitted
+  | 'under_review'        // Đang xem xét - Preliminary review
+  | 'field_verification'  // Kiểm tra thực địa - Needs field check
+  | 'confirmed'           // Đã xác nhận - Officially confirmed
+  | 'rejected'            // Từ chối - Rejected
+  | 'closed'              // Đã đóng - Closed/processed
+  // Backward compat
+  | 'pending'
+  | 'verified'
+  | 'resolved';
+
+export type ReportType = 'case_report' | 'outbreak_alert';
+export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
+export type PreliminaryResult = 'valid' | 'need_field_check' | 'invalid';
+export type FieldVerificationResult = 'confirmed_suspected' | 'not_disease';
+export type OfficialClassification = 'suspected' | 'probable' | 'confirmed' | 'false_alarm';
+export type ClosureAction = 'monitoring' | 'isolation' | 'area_warning' | 'no_action';
 
 /** Verification status by field team */
 export type VerificationStatus = 
@@ -73,48 +85,23 @@ export type VerificationStatus =
   | 'verified'      // Đã xác thực - Verified
   | 'invalid';      // Không hợp lệ - Invalid
 
-export const REPORT_STATUS_CONFIG: Record<ReportStatus, { 
+export const REPORT_STATUS_CONFIG: Record<string, { 
   label: string; 
   labelVi: string; 
   color: string; 
   icon: string;
   bgColor: string;
 }> = {
-  pending: { 
-    label: 'Pending', 
-    labelVi: 'Chờ duyệt', 
-    color: '#ff9800', 
-    icon: '⏳',
-    bgColor: '#ff980020',
-  },
-  in_review: { 
-    label: 'In Review', 
-    labelVi: 'Đang xem xét', 
-    color: '#2196f3', 
-    icon: '🔍',
-    bgColor: '#2196f320',
-  },
-  approved: { 
-    label: 'Approved', 
-    labelVi: 'Đã duyệt', 
-    color: '#4caf50', 
-    icon: '✅',
-    bgColor: '#4caf5020',
-  },
-  rejected: { 
-    label: 'Rejected', 
-    labelVi: 'Từ chối', 
-    color: '#f44336', 
-    icon: '❌',
-    bgColor: '#f4433620',
-  },
-  needs_info: { 
-    label: 'Needs Info', 
-    labelVi: 'Cần thêm thông tin', 
-    color: '#9c27b0', 
-    icon: '❓',
-    bgColor: '#9c27b020',
-  },
+  submitted: { label: 'Submitted', labelVi: 'Đã gửi', color: '#9e9e9e', icon: '📝', bgColor: '#9e9e9e20' },
+  under_review: { label: 'Under Review', labelVi: 'Đang xem xét', color: '#2196f3', icon: '🔍', bgColor: '#2196f320' },
+  field_verification: { label: 'Field Check', labelVi: 'Kiểm tra thực địa', color: '#ff9800', icon: '🏥', bgColor: '#ff980020' },
+  confirmed: { label: 'Confirmed', labelVi: 'Đã xác nhận', color: '#4caf50', icon: '✅', bgColor: '#4caf5020' },
+  rejected: { label: 'Rejected', labelVi: 'Từ chối', color: '#f44336', icon: '❌', bgColor: '#f4433620' },
+  closed: { label: 'Closed', labelVi: 'Đã đóng', color: '#607d8b', icon: '📁', bgColor: '#607d8b20' },
+  // Backward compat
+  pending: { label: 'Pending', labelVi: 'Chờ duyệt', color: '#ff9800', icon: '⏳', bgColor: '#ff980020' },
+  verified: { label: 'Verified', labelVi: 'Đã xác minh', color: '#4caf50', icon: '✓', bgColor: '#4caf5020' },
+  resolved: { label: 'Resolved', labelVi: 'Đã giải quyết', color: '#607d8b', icon: '✔', bgColor: '#607d8b20' },
 };
 
 export const VERIFICATION_STATUS_CONFIG: Record<VerificationStatus, {
@@ -133,6 +120,7 @@ export const VERIFICATION_STATUS_CONFIG: Record<VerificationStatus, {
 export interface PatientInfo {
   fullName?: string;
   age?: number;
+  yearOfBirth?: number;
   gender?: 'male' | 'female' | 'other';
   idNumber?: string;
   phone?: string;
@@ -147,57 +135,95 @@ export interface PatientInfo {
   underlyingConditions?: string[];
 }
 
-/** Report from mobile app */
+/** Report from mobile app - 6-stage workflow */
 export interface Report {
   id: string;
-  case_id?: string;
-  reporter_id: string;
-  reporter_name: string;
-  reporter_phone?: string;
-  reporter_email?: string;
+  userId: string;
+  user?: User;
   
-  // Case/incident location (where the case occurred)
-  lat: number;
-  lon: number;
+  // Report type
+  reportType: ReportType;
+  severityLevel: SeverityLevel;
+  isDetailedReport: boolean;
+  isSelfReport: boolean;
+  reporterName?: string;
+  reporterPhone?: string;
+  
+  // Location (GeoJSON)
+  location?: { type: string; coordinates: [number, number] };
+  reporterLocation?: { type: string; coordinates: [number, number] };
   address?: string;
-  region_id?: number;
-  region_name?: string;
-  
-  // Reporter's location when submitting (where the reporter is)
-  reporter_lat?: number;
-  reporter_lon?: number;
   
   // Report content
-  disease_type: string;
+  diseaseType: string;
   description: string;
   symptoms?: string[];
-  affected_count?: number;
-  images?: string[];
+  affectedCount?: number;
+  imageUrls?: string[];
+  patientInfo?: PatientInfo;
   
-  // Detailed report fields
-  is_detailed_report?: boolean;
-  patient_info?: PatientInfo;
+  // Epidemiological info
+  hasContactWithPatient?: boolean;
+  hasVisitedEpidemicArea?: boolean;
+  hasSimilarCasesNearby?: boolean;
+  estimatedNearbyCount?: number;
+  
+  // Medical info
+  hasVisitedDoctor?: boolean;
+  hasTestResult?: boolean;
+  testResultDescription?: string;
+  testResultImageUrls?: string[];
+  medicalCertImageUrls?: string[];
+  
+  // Outbreak fields
+  locationDescription?: string;
+  locationType?: string;
+  suspectedDisease?: string;
+  outbreakDescription?: string;
+  discoveryTime?: string;
+  
+  // Status
+  status: ReportStatus;
+  adminNote?: string;
+  
+  // Submission tracking
+  userSubmissionCount?: number; // Number of times user submitted reports for this disease
+  
+  // Multi-step verification tracking
+  autoVerifiedAt?: string;
+  autoVerificationResult?: Record<string, unknown>;
+  
+  preliminaryReviewBy?: string;
+  preliminaryReviewAt?: string;
+  preliminaryReviewResult?: PreliminaryResult;
+  preliminaryReviewNote?: string;
+  
+  fieldVerifierId?: string;
+  fieldVerifiedAt?: string;
+  fieldVerificationResult?: FieldVerificationResult;
+  fieldVerificationNote?: string;
+  
+  officialConfirmBy?: string;
+  officialConfirmAt?: string;
+  officialClassification?: OfficialClassification;
+  officialConfirmNote?: string;
+  
+  closedAt?: string;
+  closedBy?: string;
+  closureAction?: ClosureAction;
+  closureNote?: string;
+  
+  // Legacy
+  verifiedAt?: string;
+  verifiedBy?: string;
+  
+  reporterConsent?: boolean;
   
   // Timestamps
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
   
-  // Workflow
-  report_status: ReportStatus;
-  verification_status: VerificationStatus;
-  
-  // Review info
-  reviewed_by?: string;
-  reviewed_at?: string;
-  review_notes?: string;
-  
-  // Verification info
-  verified_by?: string;
-  verified_at?: string;
-  verification_notes?: string;
-  
-  // Priority
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 export interface ReportListResponse {
@@ -205,29 +231,56 @@ export interface ReportListResponse {
   total: number;
   page: number;
   limit: number;
-  totalPages: number;
-  stats: {
-    pending: number;
-    in_review: number;
-    approved: number;
-    rejected: number;
-    needs_info: number;
-  };
 }
 
+/** Status history entry */
+export interface ReportStatusHistory {
+  id: string;
+  reportId: string;
+  previousStatus: string | null;
+  newStatus: string;
+  changedBy?: string;
+  changedByRole?: string;
+  note?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+/** Preliminary review by local health authority */
+export interface PreliminaryReviewPayload {
+  result: PreliminaryResult;
+  note?: string;
+}
+
+/** Field verification payload */
+export interface FieldVerificationPayload {
+  result: FieldVerificationResult;
+  note?: string;
+}
+
+/** Official confirmation payload */
+export interface OfficialConfirmationPayload {
+  classification: OfficialClassification;
+  note?: string;
+  createCase?: boolean;
+}
+
+/** Close report payload */
+export interface CloseReportPayload {
+  action: ClosureAction;
+  note?: string;
+}
+
+/** Legacy review payload (backward compat) */
 export interface ReportReviewPayload {
-  report_status: ReportStatus;
-  review_notes?: string;
-  verification_status?: VerificationStatus;
-  verification_notes?: string;
-  create_case?: boolean; // Auto-create case on approval
-  case_severity?: number;
-  case_status?: string;
+  status: ReportStatus;
+  adminNote?: string;
+  createCase?: boolean;
 }
 
 // Helper functions for reports
-export function getReportStatusConfig(status: ReportStatus) {
-  return REPORT_STATUS_CONFIG[status] || REPORT_STATUS_CONFIG.pending;
+export function getReportStatusConfig(status: string) {
+  return REPORT_STATUS_CONFIG[status] || REPORT_STATUS_CONFIG.submitted;
 }
 
 export function getVerificationStatusConfig(status: VerificationStatus) {
@@ -255,10 +308,23 @@ export interface User {
   name: string;
   email?: string;
   phone: string;
-  role: 'user' | 'healthWorker' | 'admin';
+  role: 'user' | 'health_authority' | 'admin';
   avatarUrl?: string;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  gender?: string;
+  dateOfBirth?: string;
+  citizenId?: string;
+  fullAddress?: string;
+  province?: string;
+  district?: string;
+  ward?: string;
+  organizationName?: string;
+  organizationLevel?: string;
+  organizationAddress?: string;
+  reputationScore?: number;
+  isBlacklisted?: boolean;
+  consentGiven?: boolean;
 }
 
 export interface Post {

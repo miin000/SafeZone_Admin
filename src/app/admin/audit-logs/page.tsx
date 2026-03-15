@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -23,18 +24,8 @@ interface AuditLog {
   };
 }
 
-const navItems = [
-  { href: '/', icon: '🗺️', label: 'Dashboard' },
-  { href: '/stats', icon: '📊', label: 'Statistics' },
-  { href: '/admin/reports', icon: '📋', label: 'Reports' },
-  { href: '/admin', icon: '🏥', label: 'Cases' },
-  { href: '/admin/zones', icon: '🚨', label: 'Zones' },
-  { href: '/admin/posts', icon: '💬', label: 'Posts' },
-  { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
-  { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
-  { href: '/admin/users', icon: '👥', label: 'Users' },
-  { href: '/admin/audit-logs', icon: '📜', label: 'Audit Logs', adminOnly: true },
-];
+// Use shared navigation items
+const navItems = ADMIN_NAV_ITEMS;
 
 const actionLabels: Record<string, { label: string; color: string; icon: string }> = {
   view: { label: 'Xem', color: '#3b82f6', icon: '👁️' },
@@ -59,8 +50,6 @@ const resourceLabels: Record<string, string> = {
 };
 
 export default function AuditLogsPage() {
-  const pathname = usePathname();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -144,52 +133,22 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex">
       {/* Sidebar */}
-      <aside className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 shadow-sm z-50 transition-all duration-300 ${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'}`}>
-        <div className="h-16 flex items-center px-4 border-b border-slate-200">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-            SZ
-          </div>
-          {!sidebarCollapsed && <span className="ml-3 font-bold text-slate-800 text-lg">SafeZone</span>}
-        </div>
-
-        <nav className="p-3 space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                  isActive ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <span className="text-xl">{item.icon}</span>
-                {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute bottom-4 right-4 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
-        >
-          {sidebarCollapsed ? '→' : '←'}
-        </button>
-      </aside>
+      <Sidebar navItems={navItems} />
 
       {/* Main Content */}
-      <main className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'}`}>
+      <main className="flex-1 ml-64">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">📜 Nhật ký hệ thống</h1>
-            <p className="text-sm text-slate-500">Theo dõi hoạt động của admin</p>
-          </div>
-        </header>
+        <Header />
 
+        {/* Page Title */}
+        <div className="bg-white border-b border-slate-200 px-6 py-4">
+          <h1 className="text-2xl font-bold text-slate-800">📜 Nhật ký hoạt động</h1>
+          <p className="text-sm text-slate-500">Theo dõi tất cả hoạt động trong hệ thống</p>
+        </div>
+
+        {/* Page Content */}
         <div className="p-6">
           {/* Filters */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">

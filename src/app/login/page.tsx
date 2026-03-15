@@ -21,8 +21,8 @@ export default function LoginPage() {
       // Determine if input is email or phone
       const isEmail = emailOrPhone.includes('@');
       const loginData = isEmail 
-        ? { email: emailOrPhone, password }
-        : { phone: emailOrPhone, password };
+        ? { email: emailOrPhone, password, source: 'web' }
+        : { phone: emailOrPhone, password, source: 'web' };
 
       const res = await fetch(`${API}/auth/login`, {
         method: 'POST',
