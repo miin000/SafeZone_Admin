@@ -312,6 +312,7 @@ export default function AdminPage() {
       {/* Modals */}
       {modalOpen && (
         <CaseModal
+          isOpen={modalOpen}
           caseId={editingCaseId}
           onClose={() => {
             setModalOpen(false);

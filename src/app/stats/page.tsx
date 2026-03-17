@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -135,7 +135,7 @@ export default function StatsPage() {
             ) : (
               <div style={contentGridStyle}>
                 {/* Row 1 - Summary Cards */}
-                <div style={summaryCardsGridStyle}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <SummaryCard 
                     icon="🏥" 
                     label="Total Cases" 
@@ -164,7 +164,7 @@ export default function StatsPage() {
                 </div>
 
                 {/* Row 2 - Line Chart & Bar Chart */}
-                <div style={chartsRowStyle}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Line Chart - Cases over time */}
                   <div style={chartCardStyle}>
                     <div style={chartTitleStyle}>📈 Số ca theo thời gian</div>

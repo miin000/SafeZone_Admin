@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -70,9 +70,9 @@ export default function UsersPage() {
       }
 
       const url = roleFilter !== 'ALL'
-        ? `${API}/admin/users/staff?role=${roleFilter}`
-        : `${API}/admin/users/staff`;
-      
+        ? `${API}/admin/users?role=${roleFilter}`
+        : `${API}/admin/users`;
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -300,7 +300,7 @@ export default function UsersPage() {
               onChange={(e) => setRoleFilter(e.target.value)}
               className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             >
-              <option value="ALL">Tất cả</option>
+              <option value="ALL">Tất cả</option><option value="user">Người dùng</option>
               <option value="admin">Admin</option>
               <option value="health_authority">Cơ quan Y tế</option>
             </select>

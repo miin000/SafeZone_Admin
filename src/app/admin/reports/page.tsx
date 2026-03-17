@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -161,8 +161,6 @@ export default function ReportsPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      if (priorityFilter !== 'ALL') params.set('priority', priorityFilter);
-      if (searchQuery) params.set('search', searchQuery);
 
       const token = localStorage.getItem('token');
       if (!token) {
@@ -384,7 +382,7 @@ export default function ReportsPage() {
 
   const getTimeAgo = (dateStr: string) => {
     if (!dateStr) return 'Không xác định';
-    const date = new Date(dateStr);
+    const date = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
     if (isNaN(date.getTime())) return 'Không xác định';
     
     const now = new Date();
@@ -841,7 +839,7 @@ function ReviewModal({
 
   const getTimeAgo = (dateStr: string) => {
     if (!dateStr) return 'Không xác định';
-    const date = new Date(dateStr);
+    const date = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
     if (isNaN(date.getTime())) return 'Không xác định';
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();

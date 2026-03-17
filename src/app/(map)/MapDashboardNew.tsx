@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import type { FeatureCollection } from 'geojson';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
 import type { DisplayMode, Case, Stats } from '@/types';
 import { 
   getStatusColor, 
@@ -51,24 +53,8 @@ interface Zone {
   startDate?: string;
 }
 
-// Navigation items
-const navItems = [
-  { href: '/', icon: '🗺️', label: 'Dashboard' },
-  { href: '/stats', icon: '📊', label: 'Statistics' },
-  { href: '/admin/reports', icon: '📋', label: 'Reports' },
-  { href: '/admin', icon: '🏥', label: 'Cases' },
-  { href: '/admin/zones', icon: '🚨', label: 'Zones' },
-  { href: '/admin/posts', icon: '💬', label: 'Posts' },
-  { href: '/admin/health-info', icon: '📚', label: 'Health Info' },
-  { href: '/admin/notifications', icon: '🔔', label: 'Notifications' },
-  { href: '/admin/users', icon: '👥', label: 'Users' },
-];
-
 export default function MapDashboard() {
-  const pathname = usePathname();
-  
   // Sidebar states
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('filters');
   const [showTimeline, setShowTimeline] = useState(false);
@@ -265,67 +251,14 @@ export default function MapDashboard() {
   }, [stats]);
 
   return (
-    <div style={containerStyle}>
-      {/* Left Sidebar - Navigation */}
-      <aside style={{
-        ...sidebarStyle,
-        width: sidebarCollapsed ? 72 : 240,
-      }}>
-        {/* Logo */}
-        <div style={logoContainerStyle}>
-          <Link href="/" style={logoStyle}>
-            <span style={{ fontSize: 26 }}>🛡️</span>
-            {!sidebarCollapsed && (
-              <span style={logoTextStyle}>SafeZone</span>
-            )}
-          </Link>
-        </div>
+    <div className="flex">
+      <Sidebar navItems={ADMIN_NAV_ITEMS} />
 
-        {/* Navigation */}
-        <nav style={navStyle}>
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || 
-              (item.href !== '/' && pathname.startsWith(item.href));
-            
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                style={{
-                  ...navItemStyle,
-                  background: isActive ? 'linear-gradient(90deg, #10b981, #059669)' : 'transparent',
-                  color: isActive ? '#fff' : '#64748b',
-                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                }}
-                title={sidebarCollapsed ? item.label : undefined}
-              >
-                <span style={{ fontSize: 16, minWidth: 22 }}>{item.icon}</span>
-                {!sidebarCollapsed && (
-                  <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 500 }}>{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+      <main className="flex-1 ml-64">
+        <Header />
 
-        {/* Collapse Button */}
-        <div style={{ padding: '12px', borderTop: '1px solid #e2e8f0' }}>
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            style={collapseButtonStyle}
-          >
-            {sidebarCollapsed ? '▶' : '◀'}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div style={{
-        ...mainContentStyle,
-        marginLeft: sidebarCollapsed ? 72 : 240,
-      }}>
-        {/* Map Container */}
-        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+        {/* Map & side panel container */}
+        <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 'calc(100vh - 120px)' }}>
           {/* Map Area */}
           <div style={{ flex: 1, position: 'relative' }}>
             {!cases ? (
@@ -461,29 +394,29 @@ export default function MapDashboard() {
             </button>
           )}
         </div>
-      </div>
+        
+        {/* Case Modal */}
+        <CaseModal
+          isOpen={modalOpen}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingCaseId(null);
+          }}
+          caseId={editingCaseId}
+          onSave={handleModalSave}
+        />
 
-      {/* Case Modal */}
-      <CaseModal
-        isOpen={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setEditingCaseId(null);
-        }}
-        caseId={editingCaseId}
-        onSave={handleModalSave}
-      />
-
-      {/* Zone Modal */}
-      <ZoneModal
-        isOpen={zoneModalOpen}
-        onClose={() => {
-          setZoneModalOpen(false);
-          setEditingZoneId(null);
-        }}
-        zoneId={editingZoneId}
-        onSave={handleZoneModalSave}
-      />
+        {/* Zone Modal */}
+        <ZoneModal
+          isOpen={zoneModalOpen}
+          onClose={() => {
+            setZoneModalOpen(false);
+            setEditingZoneId(null);
+          }}
+          zoneId={editingZoneId}
+          onSave={handleZoneModalSave}
+        />
+      </main>
     </div>
   );
 }

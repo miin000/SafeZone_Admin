@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,7 +17,7 @@ export default function Header() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
+    const handleUpdate = () => { const userStr = localStorage.getItem('user');
     if (userStr) {
       try {
         setCurrentUser(JSON.parse(userStr));
@@ -25,7 +25,7 @@ export default function Header() {
         console.error('Failed to parse user data');
       }
     }
-  }, []);
+  }; handleUpdate(); window.addEventListener('user-updated', handleUpdate); return () => window.removeEventListener('user-updated', handleUpdate); }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -56,7 +56,7 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
       <div className="px-6 py-3 flex items-center justify-between">
         <div className="flex-1" />
 

@@ -109,7 +109,12 @@ export function useRegions() {
 }
 
 export async function getCaseById(id: string): Promise<Case> {
-  const res = await fetch(`${API}/gis/cases/${id}`);
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API}/gis/cases/${id}`, { headers });
   if (!res.ok) {
     const errorText = await res.text().catch(() => 'Unknown error');
     throw new Error(`Failed to fetch case: ${res.status} ${errorText}`);
@@ -118,9 +123,13 @@ export async function getCaseById(id: string): Promise<Case> {
 }
 
 export async function createCase(data: CaseFormData): Promise<Case> {
+  const token = localStorage.getItem('token');
   const res = await fetch(`${API}/gis/cases`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -131,9 +140,13 @@ export async function createCase(data: CaseFormData): Promise<Case> {
 }
 
 export async function updateCase(id: string, data: Partial<CaseFormData>): Promise<Case> {
+  const token = localStorage.getItem('token');
   const res = await fetch(`${API}/gis/cases/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -144,8 +157,12 @@ export async function updateCase(id: string, data: Partial<CaseFormData>): Promi
 }
 
 export async function deleteCase(id: string): Promise<void> {
+  const token = localStorage.getItem('token');
   const res = await fetch(`${API}/gis/cases/${id}`, {
     method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
   });
   if (!res.ok) {
     const errorText = await res.text().catch(() => 'Unknown error');

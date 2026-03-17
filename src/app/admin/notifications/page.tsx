@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
@@ -223,9 +224,9 @@ export default function NotificationsPage() {
         <Header />
 
         {/* Page Title */}
-        <div className="bg-white border-b border-slate-200 px-6 py-4">
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-slate-800">🔔 Quản lý thông báo</h1>
-          <p className="text-sm text-slate-500">Quản lý và gửi thông báo cho người dùng</p>
+          <button onClick={() => { setNotifType('all'); setShowSendModal(true); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 ml-auto flex items-center font-medium">+ Thêm thông báo</button><p className="text-sm text-slate-500">Quản lý và gửi thông báo cho người dùng</p>
         </div>
 
         {/* Page Content */}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useCallback, useEffect } from 'react';
 import Header from '@/components/Header';
@@ -166,8 +166,8 @@ export default function HealthInfoPage() {
         <Header />
 
         {/* Page Title */}
-        <div className="bg-white border-b border-slate-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-slate-800">📚 Quản lý thông tin y tế</h1>
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-slate-800">📚 Quản lý thông tin y tế</h1><button onClick={() => setModalOpen(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 ml-auto flex items-center font-medium">+ Thêm thông tin</button>
           <p className="text-sm text-slate-500">Quản lý nội dung thông tin y tế cho người dùng</p>
         </div>
 
