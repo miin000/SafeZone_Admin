@@ -28,7 +28,6 @@ interface NotificationHistory {
   sentAt: string;
   targetZoneId?: string;
   targetZoneName?: string;
-  recipientCount?: number;
 }
 
 interface RawNotification {
@@ -104,7 +103,6 @@ export default function NotificationsPage() {
           sentAt: notif.createdAt,
           targetZoneId: notif.data?.zoneId,
           targetZoneName: notif.data?.zoneName,
-          recipientCount: Math.floor(Math.random() * 1000) + 100, // TODO: Get from actual data
         }));
         setNotifications(mappedNotifications);
       } else if (res.status === 401) {
@@ -135,7 +133,6 @@ export default function NotificationsPage() {
     totalSent: notifications.length,
     zoneAlerts: notifications.filter(n => n.type === 'zone').length,
     broadcastAlerts: notifications.filter(n => n.type === 'all').length,
-    totalRecipients: notifications.reduce((sum, n) => sum + (n.recipientCount || 0), 0),
   }), [notifications]);
 
   // Send notification
@@ -203,7 +200,9 @@ export default function NotificationsPage() {
 
   // Format date
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
+    const hasTimezone =
+      dateStr.endsWith('Z') || /([+-]\d{2}:?\d{2})$/.test(dateStr);
+    const d = new Date(hasTimezone ? dateStr : `${dateStr}Z`);
     return d.toLocaleDateString('vi-VN', {
       day: '2-digit',
       month: '2-digit', 
@@ -232,7 +231,7 @@ export default function NotificationsPage() {
         {/* Page Content */}
         <div className="p-6 bg-slate-50 min-h-[calc(100vh-80px)]">
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="card p-4">
               <div className="text-2xl mb-2">📨</div>
               <div className="text-2xl font-bold text-sky-600">{stats.totalSent}</div>
@@ -247,11 +246,6 @@ export default function NotificationsPage() {
               <div className="text-2xl mb-2">📢</div>
               <div className="text-2xl font-bold text-amber-600">{stats.broadcastAlerts}</div>
               <div className="text-xs text-slate-500">Thông báo chung</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-2xl mb-2">👥</div>
-              <div className="text-2xl font-bold text-emerald-600">{stats.totalRecipients.toLocaleString()}</div>
-              <div className="text-xs text-slate-500">Tổng người nhận</div>
             </div>
           </div>
 
@@ -335,9 +329,6 @@ export default function NotificationsPage() {
                       <p className="text-sm text-slate-600 mb-2">{notif.body}</p>
                       <div className="flex items-center gap-4 text-xs text-slate-500">
                         <span>📅 {formatDate(notif.sentAt)}</span>
-                        {notif.recipientCount && (
-                          <span>👥 {notif.recipientCount.toLocaleString()} người nhận</span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -368,7 +359,7 @@ export default function NotificationsPage() {
               <div className="p-4 bg-sky-50 rounded-lg border border-sky-100">
                 <div className="text-2xl mb-2">4️⃣</div>
                 <div className="font-semibold text-slate-800 mb-1">Theo dõi & Cập nhật</div>
-                <div className="text-sm text-slate-600">Xem lịch sử và số người nhận thông báo</div>
+                <div className="text-sm text-slate-600">Xem lịch sử gửi thông báo gần nhất</div>
               </div>
             </div>
           </div>

@@ -60,17 +60,8 @@ export default function Header() {
       <div className="px-6 py-3 flex items-center justify-between">
         <div className="flex-1" />
 
-        {/* Right Section: Notifications + User Menu */}
+        {/* Right Section: User Menu */}
         <div className="flex items-center gap-4">
-          {/* Notification Bell */}
-          <button
-            className="p-2 rounded-lg hover:bg-slate-100 relative transition-colors"
-            title="Notifications"
-          >
-            <span className="text-xl">🔔</span>
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
-
           {/* User Avatar + Dropdown */}
           <div className="relative">
             <button

@@ -22,6 +22,8 @@ const navItems = ADMIN_NAV_ITEMS;
 export default function StatsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [diseaseOptions, setDiseaseOptions] = useState<string[]>([]);
+  const [provinceOptions, setProvinceOptions] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedDisease, setSelectedDisease] = useState<string>('ALL');
   const [selectedProvince, setSelectedProvince] = useState<string>('ALL');
@@ -32,8 +34,8 @@ export default function StatsPage() {
     const params = new URLSearchParams();
     if (selectedDisease !== 'ALL') params.set('diseaseType', selectedDisease);
     if (selectedProvince !== 'ALL') params.set('regionName', selectedProvince);
-    if (dateRange.from) params.set('from', dateRange.from);
-    if (dateRange.to) params.set('to', dateRange.to);
+    if (dateRange.from) params.set('from', `${dateRange.from}T00:00:00.000Z`);
+    if (dateRange.to) params.set('to', `${dateRange.to}T23:59:59.999Z`);
     return params.toString();
   }, [selectedDisease, selectedProvince, dateRange]);
 
@@ -46,6 +48,39 @@ export default function StatsPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [queryString]);
+
+  useEffect(() => {
+    fetch(`${API}/diseases`)
+      .then((r) => r.json())
+      .then((rows) => {
+        const names = Array.isArray(rows)
+          ? rows
+              .map((item: { name?: string }) => item?.name?.trim())
+              .filter((name): name is string => Boolean(name))
+          : [];
+        setDiseaseOptions(names);
+      })
+      .catch(() => setDiseaseOptions([]));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/gis/regions`)
+      .then((r) => r.json())
+      .then((geojson) => {
+        const features = Array.isArray(geojson?.features) ? geojson.features : [];
+        const names = (features as Array<{ properties?: { TinhThanh?: string } }>)
+          .map((feature: { properties?: { TinhThanh?: string } }) =>
+            feature?.properties?.TinhThanh?.trim(),
+          )
+          .filter((name: string | undefined): name is string => Boolean(name));
+
+        const unique = Array.from(new Set(names)).sort((a, b) =>
+          a.localeCompare(b, 'vi'),
+        );
+        setProvinceOptions(unique);
+      })
+      .catch(() => setProvinceOptions([]));
+  }, []);
 
   const { summary, byDisease, byStatus, byWeek, topRegions, comparison } = stats || {};
 
@@ -97,9 +132,9 @@ export default function StatsPage() {
               style={selectStyle}
             >
               <option value="ALL">Tất cả</option>
-              {(byDisease || []).map(d => (
-                <option key={d.disease_type} value={d.disease_type}>
-                  {getBilingualDiseaseLabel(d.disease_type)}
+              {(diseaseOptions.length > 0 ? diseaseOptions : (byDisease || []).map(d => d.disease_type)).map((disease) => (
+                <option key={disease} value={disease}>
+                  {getBilingualDiseaseLabel(disease)}
                 </option>
               ))}
             </select>
@@ -112,8 +147,11 @@ export default function StatsPage() {
               style={selectStyle}
             >
               <option value="ALL">Tất cả</option>
-              {(topRegions || []).map(r => (
-                <option key={r.id} value={r.name}>{r.name}</option>
+              {(provinceOptions.length > 0
+                ? provinceOptions
+                : (topRegions || []).map((r) => r.name)
+              ).map((province) => (
+                <option key={province} value={province}>{province}</option>
               ))}
             </select>
           </div>
@@ -127,13 +165,36 @@ export default function StatsPage() {
             />
           </div>
           <div style={filterGroupStyle}>
-            {loading ? (
-              <div style={loadingContainerStyle}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
-                <div>Đang tải dữ liệu...</div>
-              </div>
-            ) : (
-              <div style={contentGridStyle}>
+            <label style={filterLabelStyle}>Đến ngày</label>
+            <input
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+              style={selectStyle}
+            />
+          </div>
+          <div style={filterGroupStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDisease('ALL');
+                setSelectedProvince('ALL');
+                setDateRange({ from: '', to: '' });
+              }}
+              style={{ ...selectStyle, cursor: 'pointer' }}
+            >
+              Đặt lại bộ lọc
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={loadingContainerStyle}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+            <div>Đang tải dữ liệu...</div>
+          </div>
+        ) : (
+          <div style={contentGridStyle}>
                 {/* Row 1 - Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <SummaryCard 
@@ -336,10 +397,8 @@ export default function StatsPage() {
                     </div>
                   </div>
                 )}
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
       </main>
     </div>

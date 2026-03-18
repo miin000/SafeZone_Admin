@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import type { Case, CaseFormData } from '@/types';
-import { DISEASE_TYPES, STATUS_OPTIONS, SEVERITY_LEVELS } from '@/types';
+import { STATUS_OPTIONS, SEVERITY_LEVELS } from '@/types';
 import { getCaseById, createCase, updateCase } from '@/hooks/useGisData';
 
 const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false });
@@ -19,6 +19,7 @@ interface CaseModalProps {
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave }: CaseModalProps) {
+  const [diseaseTypes, setDiseaseTypes] = useState<string[]>(['Dengue']);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +67,28 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
 
     return () => clearTimeout(timeoutId);
   }, [formData.lat, formData.lon, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    fetch(`${API}/diseases`)
+      .then((r) => r.json())
+      .then((rows) => {
+        const names = Array.isArray(rows)
+          ? rows
+              .map((item: { name?: string }) => item?.name?.trim())
+              .filter((name): name is string => Boolean(name))
+          : [];
+        if (names.length > 0) {
+          setDiseaseTypes(names);
+          setFormData((prev) => ({
+            ...prev,
+            disease_type: prev.disease_type || names[0],
+          }));
+        }
+      })
+      .catch(() => setDiseaseTypes(['Dengue']));
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && caseId) {
@@ -169,7 +192,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
                   style={inputStyle}
                   required
                 >
-                  {DISEASE_TYPES.map((d) => (
+                  {diseaseTypes.map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>

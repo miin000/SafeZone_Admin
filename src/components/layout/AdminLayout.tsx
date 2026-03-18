@@ -27,7 +27,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Get current page title
@@ -138,14 +137,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 style={searchInputStyle}
               />
             </div>
-
-            {/* Notification Bell */}
-            <button style={iconButtonStyle} title="Notifications">
-              <span>🔔</span>
-              {notificationCount > 0 && (
-                <span style={notificationBadgeStyle}>{notificationCount}</span>
-              )}
-            </button>
 
             {/* User Avatar Dropdown */}
             <div style={{ position: 'relative' }}>

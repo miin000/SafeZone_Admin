@@ -64,13 +64,23 @@ export default function HealthInfoModal({
         : `${API}/health-info`;
       const method = item ? 'PATCH' : 'POST';
 
+      const payload = {
+        ...formData,
+        summary: formData.summary?.trim() || undefined,
+        thumbnailUrl: formData.thumbnailUrl?.trim() || undefined,
+        sourceUrl: formData.sourceUrl?.trim() || undefined,
+        sourceName: formData.sourceName?.trim() || undefined,
+        imageUrls: formData.imageUrls?.filter(Boolean),
+        tags: formData.tags?.filter(Boolean),
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {

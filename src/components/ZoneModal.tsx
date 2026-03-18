@@ -16,16 +16,7 @@ const RISK_LEVELS = [
 ];
 
 // Disease types
-const DISEASE_TYPES = [
-  'Dengue',
-  'HFMD',
-  'COVID-19',
-  'Influenza',
-  'Cholera',
-  'Typhoid',
-  'Malaria',
-  'Other',
-];
+const DEFAULT_DISEASE_TYPES = ['Dengue'];
 
 export interface ZoneFormData {
   name: string;
@@ -56,6 +47,9 @@ export default function ZoneModal({
 }: ZoneModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [diseaseTypes, setDiseaseTypes] = useState<string[]>(
+    DEFAULT_DISEASE_TYPES,
+  );
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [formData, setFormData] = useState<ZoneFormData>({
     name: '',
@@ -68,6 +62,31 @@ export default function ZoneModal({
     description: '',
     startDate: new Date().toISOString().split('T')[0],
   });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    fetch(`${API}/diseases`)
+      .then((r) => r.json())
+      .then((rows) => {
+        const names = Array.isArray(rows)
+          ? rows
+              .map((item: { name?: string }) => item?.name?.trim())
+              .filter((name): name is string => Boolean(name))
+          : [];
+
+        if (names.length > 0) {
+          setDiseaseTypes(names);
+          setFormData((prev) => ({
+            ...prev,
+            diseaseType: prev.diseaseType || names[0],
+          }));
+        }
+      })
+      .catch(() => {
+        setDiseaseTypes(DEFAULT_DISEASE_TYPES);
+      });
+  }, [isOpen]);
 
   // Load zone data if editing
   useEffect(() => {
@@ -205,7 +224,7 @@ export default function ZoneModal({
                   required
                   style={inputStyle}
                 >
-                  {DISEASE_TYPES.map((d) => (
+                  {diseaseTypes.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>

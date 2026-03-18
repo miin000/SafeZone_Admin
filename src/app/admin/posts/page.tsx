@@ -128,6 +128,12 @@ export default function PostsPage() {
     );
   }) || [];
 
+  const formatDateTime = (value: string) => {
+    const hasTimezone =
+      value.endsWith('Z') || /([+-]\d{2}:?\d{2})$/.test(value);
+    return new Date(hasTimezone ? value : `${value}Z`).toLocaleString('vi-VN');
+  };
+
   return (
     <div className="flex">
       {/* Sidebar */}
@@ -268,7 +274,7 @@ export default function PostsPage() {
                             {post.user?.name || 'Ẩn danh'}
                           </div>
                           <div className="text-sm text-slate-500">
-                            {new Date(post.createdAt).toLocaleString('vi-VN')}
+                            {formatDateTime(post.createdAt)}
                           </div>
                         </div>
                       </div>
