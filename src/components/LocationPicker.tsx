@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Circle,
+  CircleMarker,
+  Tooltip,
+  useMapEvents,
+  useMap,
+} from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -21,8 +30,18 @@ L.Marker.prototype.options.icon = defaultIcon;
 interface LocationPickerProps {
   lat: number;
   lon: number;
+  radiusKm?: number;
+  casePoints?: CasePoint[];
   onChange: (lat: number, lon: number) => void;
   onClose: () => void;
+}
+
+interface CasePoint {
+  id: string;
+  diseaseType: string;
+  status: string;
+  lat: number;
+  lon: number;
 }
 
 function MapClickHandler({ onClick }: { onClick: (lat: number, lng: number) => void }) {
@@ -44,7 +63,24 @@ function FlyToLocation({ lat, lon }: { lat: number; lon: number }) {
   return null;
 }
 
-export default function LocationPicker({ lat, lon, onChange, onClose }: LocationPickerProps) {
+function getStatusColor(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === 'confirmed') return '#d62728';
+  if (normalized === 'probable') return '#ff7f0e';
+  if (normalized === 'suspected') return '#f59e0b';
+  if (normalized === 'recovered') return '#16a34a';
+  if (normalized === 'deceased' || normalized === 'died') return '#111827';
+  return '#0ea5e9';
+}
+
+export default function LocationPicker({
+  lat,
+  lon,
+  radiusKm = 1,
+  casePoints = [],
+  onChange,
+  onClose,
+}: LocationPickerProps) {
   const [position, setPosition] = useState({ lat, lon });
   const [inputLat, setInputLat] = useState(String(lat));
   const [inputLon, setInputLon] = useState(String(lon));
@@ -86,6 +122,35 @@ export default function LocationPicker({ lat, lon, onChange, onClose }: Location
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; OpenStreetMap'
             />
+            <Circle
+              center={[position.lat, position.lon]}
+              radius={Math.max(0.1, radiusKm) * 1000}
+              pathOptions={{
+                color: '#dc2626',
+                fillColor: '#ef4444',
+                fillOpacity: 0.15,
+                weight: 2,
+              }}
+            />
+
+            {casePoints.map((point) => (
+              <CircleMarker
+                key={point.id}
+                center={[point.lat, point.lon]}
+                radius={4}
+                pathOptions={{
+                  color: '#ffffff',
+                  weight: 1,
+                  fillColor: getStatusColor(point.status),
+                  fillOpacity: 0.9,
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -4]}>
+                  {point.diseaseType} ({point.status})
+                </Tooltip>
+              </CircleMarker>
+            ))}
+
             <Marker position={[position.lat, position.lon]} />
             <MapClickHandler onClick={handleMapClick} />
             <FlyToLocation lat={position.lat} lon={position.lon} />
@@ -120,6 +185,9 @@ export default function LocationPicker({ lat, lon, onChange, onClose }: Location
 
           <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 12 }}>
             💡 Click vào bản đồ để chọn vị trí hoặc nhập tọa độ trực tiếp
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>
+            📍 Đang hiển thị {casePoints.length} ca bệnh để tham chiếu khi tạo vùng dịch
           </div>
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

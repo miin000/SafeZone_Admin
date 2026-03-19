@@ -104,7 +104,12 @@ export default function HealthInfoPage() {
   };
 
   // Handle publish
-  const handlePublish = async (id: string) => {
+  const handlePublish = async (id: string, title?: string) => {
+    const ok = window.confirm(
+      `Xác nhận xuất bản bài viết${title ? `\n\n\"${title}\"` : ''}?`,
+    );
+    if (!ok) return;
+
     try {
       await fetch(`${API}/health-info/${id}/publish`, {
         method: 'PATCH',
@@ -119,7 +124,12 @@ export default function HealthInfoPage() {
   };
 
   // Handle archive
-  const handleArchive = async (id: string) => {
+  const handleArchive = async (id: string, title?: string) => {
+    const ok = window.confirm(
+      `Xác nhận lưu trữ bài viết${title ? `\n\n\"${title}\"` : ''}?`,
+    );
+    if (!ok) return;
+
     try {
       await fetch(`${API}/health-info/${id}/archive`, {
         method: 'PATCH',
@@ -348,7 +358,7 @@ export default function HealthInfoPage() {
                                 </button>
                                 {item.status === 'draft' && (
                                   <button
-                                    onClick={() => handlePublish(item.id)}
+                                    onClick={() => handlePublish(item.id, item.title)}
                                     className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors"
                                     title="Xuất bản"
                                   >
@@ -357,7 +367,7 @@ export default function HealthInfoPage() {
                                 )}
                                 {item.status === 'published' && (
                                   <button
-                                    onClick={() => handleArchive(item.id)}
+                                    onClick={() => handleArchive(item.id, item.title)}
                                     className="p-2 rounded-lg hover:bg-amber-100 text-amber-600 transition-colors"
                                     title="Lưu trữ"
                                   >

@@ -22,10 +22,7 @@ export default function MapLayerControl({
   const displayModes: { value: DisplayMode; icon: string; label: string; labelVi: string }[] = [
     { value: 'points_disease', icon: '🦠', label: 'By Disease', labelVi: 'Theo loại bệnh' },
     { value: 'points_status', icon: '📊', label: 'By Status', labelVi: 'Theo trạng thái' },
-    { value: 'points_severity', icon: '⚠️', label: 'By Severity', labelVi: 'Theo mức độ' },
     { value: 'heatmap', icon: '🔥', label: 'Heatmap', labelVi: 'Bản đồ nhiệt' },
-    { value: 'grid_density', icon: '📐', label: 'Risk Grid', labelVi: 'Lưới nguy cơ' },
-    { value: 'clusters', icon: '⭕', label: 'Clusters', labelVi: 'Cụm điểm' },
   ];
 
   const baseMaps: { value: BaseMapStyle; icon: string }[] = [

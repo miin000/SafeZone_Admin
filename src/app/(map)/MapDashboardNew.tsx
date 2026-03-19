@@ -475,7 +475,6 @@ function FiltersPanel({
           <option value="points_disease">🦠 Theo loại bệnh</option>
           <option value="points_status">📊 Theo trạng thái</option>
           <option value="heatmap">🔥 Bản đồ nhiệt</option>
-          <option value="grid_density">📐 Lưới nguy cơ</option>
         </select>
       </div>
 

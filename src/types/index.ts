@@ -501,10 +501,7 @@ export interface Stats {
 export type DisplayMode = 
   | 'points_disease' 
   | 'points_status'
-  | 'points_severity'
-  | 'heatmap' 
-  | 'grid_density' 
-  | 'clusters';
+  | 'heatmap';
 
 export type BaseMapStyle = 'osm' | 'dark' | 'light' | 'satellite';
 
@@ -705,7 +702,33 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
  * Get disease color
  */
 export function getDiseaseColor(diseaseType: string): string {
-  return DISEASE_COLORS[diseaseType] || DISEASE_COLORS['Other'];
+  if (DISEASE_COLORS[diseaseType]) {
+    return DISEASE_COLORS[diseaseType];
+  }
+
+  const key = (diseaseType || 'Other').trim();
+  if (!key) {
+    return DISEASE_COLORS['Other'];
+  }
+
+  const fallbackPalette = [
+    '#0ea5e9',
+    '#22c55e',
+    '#f97316',
+    '#ef4444',
+    '#06b6d4',
+    '#eab308',
+    '#14b8a6',
+    '#ec4899',
+    '#6366f1',
+  ];
+
+  const hash = key
+    .toLowerCase()
+    .split('')
+    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+
+  return fallbackPalette[hash % fallbackPalette.length];
 }
 
 /**
@@ -865,7 +888,11 @@ export type HealthInfoCategory =
   | 'medical_guidance'
   | 'news';
 
-export type HealthInfoStatus = 'draft' | 'published' | 'archived';
+export type HealthInfoDiseaseType = 'dengue' | 'covid' | 'flu' | 'general';
+export type HealthInfoTarget = 'general' | 'children' | 'elderly' | 'pregnant';
+export type HealthInfoSeverity = 'low' | 'medium' | 'high' | 'emergency';
+
+export type HealthInfoStatus = 'draft' | 'reviewed' | 'published' | 'archived';
 
 export const HEALTH_INFO_CATEGORY_CONFIG: Record<HealthInfoCategory, {
   label: string;
@@ -917,6 +944,12 @@ export const HEALTH_INFO_STATUS_CONFIG: Record<HealthInfoStatus, {
     color: '#757575',
     bgColor: '#75757520',
   },
+  reviewed: {
+    label: 'Reviewed',
+    labelVi: 'Đã duyệt',
+    color: '#1e88e5',
+    bgColor: '#1e88e520',
+  },
   published: {
     label: 'Published',
     labelVi: 'Đã xuất bản',
@@ -937,6 +970,9 @@ export interface HealthInfo {
   content: string;
   summary?: string;
   category: HealthInfoCategory;
+  diseaseType?: HealthInfoDiseaseType;
+  target?: HealthInfoTarget;
+  severityLevel?: HealthInfoSeverity;
   status: HealthInfoStatus;
   thumbnailUrl?: string;
   imageUrls?: string[];
@@ -959,6 +995,9 @@ export interface HealthInfoFormData {
   content: string;
   summary?: string;
   category: HealthInfoCategory;
+  diseaseType?: HealthInfoDiseaseType;
+  target?: HealthInfoTarget;
+  severityLevel?: HealthInfoSeverity;
   thumbnailUrl?: string;
   imageUrls?: string[];
   tags?: string[];

@@ -15,8 +15,8 @@ const RISK_LEVELS = [
   { value: 'critical', label: 'Nguy hiểm / Critical', color: '#9c27b0' },
 ];
 
-// Disease types
-const DEFAULT_DISEASE_TYPES = ['Dengue'];
+// Disease types loaded from backend
+const DEFAULT_DISEASE_TYPES: string[] = [];
 
 export interface ZoneFormData {
   name: string;
@@ -38,6 +38,14 @@ interface ZoneModalProps {
   initialLocation?: { lat: number; lon: number };
 }
 
+interface ZoneCasePoint {
+  id: string;
+  diseaseType: string;
+  status: string;
+  lat: number;
+  lon: number;
+}
+
 export default function ZoneModal({
   isOpen,
   onClose,
@@ -51,9 +59,10 @@ export default function ZoneModal({
     DEFAULT_DISEASE_TYPES,
   );
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [casePoints, setCasePoints] = useState<ZoneCasePoint[]>([]);
   const [formData, setFormData] = useState<ZoneFormData>({
     name: '',
-    diseaseType: 'Dengue',
+    diseaseType: '',
     lat: initialLocation?.lat || 21.0285,
     lon: initialLocation?.lon || 105.8542,
     radiusKm: 1,
@@ -86,6 +95,32 @@ export default function ZoneModal({
       .catch(() => {
         setDiseaseTypes(DEFAULT_DISEASE_TYPES);
       });
+
+    fetch(`${API}/gis/cases`)
+      .then((r) => r.json())
+      .then((fc) => {
+        const features = Array.isArray(fc?.features) ? fc.features : [];
+        const points: ZoneCasePoint[] = features
+          .map((f: any) => {
+            const coords = f?.geometry?.coordinates;
+            if (!Array.isArray(coords) || coords.length < 2) return null;
+            const lon = Number(coords[0]);
+            const lat = Number(coords[1]);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+            return {
+              id: String(f?.properties?.id ?? ''),
+              diseaseType: String(f?.properties?.disease_type ?? 'Unknown'),
+              status: String(f?.properties?.status ?? 'unknown'),
+              lat,
+              lon,
+            };
+          })
+          .filter(Boolean) as ZoneCasePoint[];
+        setCasePoints(points);
+      })
+      .catch(() => {
+        setCasePoints([]);
+      });
   }, [isOpen]);
 
   // Load zone data if editing
@@ -97,7 +132,7 @@ export default function ZoneModal({
         .then((zone) => {
           setFormData({
             name: zone.name || '',
-            diseaseType: zone.diseaseType || 'Dengue',
+            diseaseType: zone.diseaseType || diseaseTypes[0] || '',
             lat: zone.center?.coordinates?.[1] || zone.latitude || 21.0285,
             lon: zone.center?.coordinates?.[0] || zone.longitude || 105.8542,
             radiusKm: zone.radiusKm || 1,
@@ -115,7 +150,7 @@ export default function ZoneModal({
       // Reset form for new zone
       setFormData({
         name: '',
-        diseaseType: 'Dengue',
+        diseaseType: diseaseTypes[0] || '',
         lat: initialLocation?.lat || 21.0285,
         lon: initialLocation?.lon || 105.8542,
         radiusKm: 1,
@@ -125,7 +160,7 @@ export default function ZoneModal({
         startDate: new Date().toISOString().split('T')[0],
       });
     }
-  }, [zoneId, isOpen, initialLocation]);
+  }, [zoneId, isOpen, initialLocation, diseaseTypes]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -224,6 +259,11 @@ export default function ZoneModal({
                   required
                   style={inputStyle}
                 >
+                  {diseaseTypes.length === 0 && (
+                    <option value="" disabled>
+                      Không có dữ liệu bệnh
+                    </option>
+                  )}
                   {diseaseTypes.map((d) => (
                     <option key={d} value={d}>
                       {d}
@@ -461,6 +501,8 @@ export default function ZoneModal({
               <LocationPicker
                 lat={formData.lat}
                 lon={formData.lon}
+                radiusKm={formData.radiusKm}
+                casePoints={casePoints}
                 onChange={(lat, lon) => {
                   setFormData((prev) => ({ ...prev, lat, lon }));
                 }}

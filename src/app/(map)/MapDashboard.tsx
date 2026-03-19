@@ -599,7 +599,6 @@ function FiltersTab({
           <option value="points_disease">🦠 Loại bệnh (màu) + Mức độ</option>
           <option value="points_status">📊 Trạng thái (màu) + Mức độ</option>
           <option value="heatmap">🔥 Bản đồ nhiệt / Heatmap</option>
-          <option value="grid_density">📐 Lưới nguy cơ / Risk Grid</option>
         </select>
       </div>
 

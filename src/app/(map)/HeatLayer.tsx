@@ -18,11 +18,8 @@ export default function HeatLayer({ cases }: { cases: FeatureCollection }) {
       const [lon, lat] = geom.coordinates || [];
       if (typeof lat !== 'number' || typeof lon !== 'number') continue;
 
-      // weight theo severity (nếu null => 1)
-      const sev = Number(f?.properties?.severity ?? 1);
-      const w = sev >= 3 ? 1.0 : sev === 2 ? 0.7 : 0.4;
-
-      pts.push([lat, lon, w]);
+      // Use equal weight so intensity reflects case density.
+      pts.push([lat, lon, 1]);
     }
 
     // @ts-ignore

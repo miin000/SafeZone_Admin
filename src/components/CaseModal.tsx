@@ -19,14 +19,14 @@ interface CaseModalProps {
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave }: CaseModalProps) {
-  const [diseaseTypes, setDiseaseTypes] = useState<string[]>(['Dengue']);
+  const [diseaseTypes, setDiseaseTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationFetching, setLocationFetching] = useState(false);
   const [formData, setFormData] = useState<CaseFormData>({
-    disease_type: 'Dengue',
+    disease_type: '',
     status: 'suspected',
     severity: 1,
     reported_time: new Date().toISOString().slice(0, 16),
@@ -87,7 +87,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
           }));
         }
       })
-      .catch(() => setDiseaseTypes(['Dengue']));
+      .catch(() => setDiseaseTypes([]));
   }, [isOpen]);
 
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
         .finally(() => setLoading(false));
     } else if (isOpen && initialData) {
       setFormData({
-        disease_type: initialData.disease_type || 'Dengue',
+        disease_type: initialData.disease_type || diseaseTypes[0] || '',
         status: initialData.status || 'suspected',
         severity: initialData.severity || 1,
         reported_time: initialData.reported_time?.slice(0, 16) || new Date().toISOString().slice(0, 16),
@@ -128,7 +128,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
     } else if (isOpen) {
       // Reset form for new case
       setFormData({
-        disease_type: 'Dengue',
+        disease_type: diseaseTypes[0] || '',
         status: 'suspected',
         severity: 1,
         reported_time: new Date().toISOString().slice(0, 16),
@@ -141,7 +141,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
       });
     }
     setError(null);
-  }, [isOpen, caseId, initialData]);
+  }, [isOpen, caseId, initialData, diseaseTypes]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,6 +192,11 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
                   style={inputStyle}
                   required
                 >
+                  {diseaseTypes.length === 0 && (
+                    <option value="" disabled>
+                      Không có dữ liệu bệnh
+                    </option>
+                  )}
                   {diseaseTypes.map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}

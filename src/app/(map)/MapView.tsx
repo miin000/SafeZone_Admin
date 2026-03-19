@@ -6,7 +6,6 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import type { FeatureCollection } from 'geojson';
 import type { LatLngExpression, LatLngBoundsExpression } from 'leaflet';
 import HeatLayer from './HeatLayer';
-import GridDensityLayer from '@/components/map/GridDensityLayer';
 import ZoneLayer from '@/components/map/ZoneLayer';
 import CasesLayer from '@/components/map/CasesLayer';
 import type { DisplayMode, Case, BaseMapStyle, MapLayerConfig } from '@/types';
@@ -134,8 +133,8 @@ export default function MapView({
     }
   }, [onModeChange]);
 
-  // Determine if we should show points
-  const showPoints = mode === 'points_disease' || mode === 'points_status' || mode === 'clusters';
+  // Determine if we should show case points
+  const showPoints = mode === 'points_disease' || mode === 'points_status';
 
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
@@ -171,15 +170,6 @@ export default function MapView({
         {/* HEATMAP Layer */}
         {mode === 'heatmap' && cases && <HeatLayer cases={cases} />}
 
-        {/* GRID DENSITY Layer */}
-        {mode === 'grid_density' && cases && (
-          <GridDensityLayer 
-            cases={cases} 
-            gridSize={0.009} // ~1km cells
-            opacity={0.6}
-          />
-        )}
-
         {/* ZONE Layer - Epidemic Zones (rendered before points so points are on top) */}
         {zones && zones.length > 0 && layerConfig.showZones && (
           <ZoneLayer
@@ -203,7 +193,12 @@ export default function MapView({
         )}
 
         {/* Legend */}
-        <Legend mode={mode} diseaseColor={diseaseColor} statusColor={statusColor} />
+        <Legend
+          mode={mode}
+          diseaseColor={diseaseColor}
+          statusColor={statusColor}
+          cases={cases}
+        />
       </MapContainer>
 
       {/* Map Layer Controls */}
@@ -247,26 +242,30 @@ function Legend({
   mode,
   diseaseColor,
   statusColor,
+  cases,
 }: {
   mode: DisplayMode;
   diseaseColor: ReturnType<typeof makeCategoricalColorMap>;
   statusColor: ReturnType<typeof makeStatusColorMap>;
+  cases: FeatureCollection | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  
-  const diseaseItems = [
-    { key: 'Dengue', labelEn: 'Dengue Fever', labelVi: 'Sốt xuất huyết', color: DISEASE_COLORS['Dengue'] },
-    { key: 'HFMD', labelEn: 'Hand Foot Mouth', labelVi: 'Tay chân miệng', color: DISEASE_COLORS['HFMD'] },
-    { key: 'Influenza', labelEn: 'Influenza', labelVi: 'Cúm', color: DISEASE_COLORS['Influenza'] },
-    { key: 'COVID-19', labelEn: 'COVID-19', labelVi: 'COVID-19', color: DISEASE_COLORS['COVID-19'] },
-    { key: 'Cholera', labelEn: 'Cholera', labelVi: 'Dịch tả', color: DISEASE_COLORS['Cholera'] },
-    { key: 'Measles', labelEn: 'Measles', labelVi: 'Sởi', color: DISEASE_COLORS['Measles'] },
-    { key: 'Malaria', labelEn: 'Malaria', labelVi: 'Sốt rét', color: DISEASE_COLORS['Malaria'] },
-    { key: 'Typhoid', labelEn: 'Typhoid', labelVi: 'Thương hàn', color: DISEASE_COLORS['Typhoid'] },
-    { key: 'Hepatitis', labelEn: 'Hepatitis', labelVi: 'Viêm gan', color: DISEASE_COLORS['Hepatitis'] },
-    { key: 'Tuberculosis', labelEn: 'Tuberculosis', labelVi: 'Lao phổi', color: DISEASE_COLORS['Tuberculosis'] },
-    { key: 'Other', labelEn: 'Other', labelVi: 'Khác', color: DISEASE_COLORS['Other'] },
-  ];
+  const diseaseItems = useMemo(() => {
+    const values = new Set<string>();
+    for (const f of (cases?.features || []) as any[]) {
+      const disease = f?.properties?.disease_type;
+      if (typeof disease === 'string' && disease.trim()) {
+        values.add(disease.trim());
+      }
+    }
+
+    return [...values].sort().map((key) => ({
+      key,
+      labelEn: key,
+      labelVi: key,
+      color: diseaseColor.get(key),
+    }));
+  }, [cases, diseaseColor]);
 
   const statusItems = [
     { key: 'suspected', labelEn: 'Suspected', labelVi: 'Nghi ngờ', color: STATUS_COLORS['suspected'] },
@@ -277,9 +276,6 @@ function Legend({
     { key: 'recovered', labelEn: 'Recovered', labelVi: 'Đã khỏi', color: STATUS_COLORS['recovered'] },
     { key: 'deceased', labelEn: 'Deceased', labelVi: 'Tử vong', color: STATUS_COLORS['deceased'] },
   ];
-
-  // Don't show legend for grid_density (it has its own)
-  if (mode === 'grid_density') return null;
 
   const items = mode === 'points_disease' ? diseaseItems : mode === 'points_status' ? statusItems : [];
 

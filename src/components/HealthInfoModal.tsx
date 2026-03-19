@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { HealthInfo, HealthInfoFormData, HealthInfoCategory } from '@/types';
+import type {
+  HealthInfo,
+  HealthInfoFormData,
+  HealthInfoCategory,
+  HealthInfoDiseaseType,
+  HealthInfoTarget,
+  HealthInfoSeverity,
+} from '@/types';
 import { HEALTH_INFO_CATEGORY_CONFIG } from '@/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
@@ -25,15 +32,12 @@ export default function HealthInfoModal({
     content: '',
     summary: '',
     category: 'disease_prevention',
-    thumbnailUrl: '',
-    imageUrls: [],
-    tags: [],
-    isFeatured: false,
+    diseaseType: 'general',
+    target: 'general',
+    severityLevel: 'low',
     sourceUrl: '',
     sourceName: '',
   });
-
-  const [tagInput, setTagInput] = useState('');
 
   // Load existing data if editing
   useEffect(() => {
@@ -43,10 +47,9 @@ export default function HealthInfoModal({
         content: item.content,
         summary: item.summary || '',
         category: item.category,
-        thumbnailUrl: item.thumbnailUrl || '',
-        imageUrls: item.imageUrls || [],
-        tags: item.tags || [],
-        isFeatured: item.isFeatured,
+        diseaseType: item.diseaseType || 'general',
+        target: item.target || 'general',
+        severityLevel: item.severityLevel || 'low',
         sourceUrl: item.sourceUrl || '',
         sourceName: item.sourceName || '',
       });
@@ -67,11 +70,8 @@ export default function HealthInfoModal({
       const payload = {
         ...formData,
         summary: formData.summary?.trim() || undefined,
-        thumbnailUrl: formData.thumbnailUrl?.trim() || undefined,
         sourceUrl: formData.sourceUrl?.trim() || undefined,
         sourceName: formData.sourceName?.trim() || undefined,
-        imageUrls: formData.imageUrls?.filter(Boolean),
-        tags: formData.tags?.filter(Boolean),
       };
 
       const res = await fetch(url, {
@@ -95,23 +95,6 @@ export default function HealthInfoModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAddTag = () => {
-    if (tagInput.trim() && !formData.tags?.includes(tagInput.trim())) {
-      setFormData({
-        ...formData,
-        tags: [...(formData.tags || []), tagInput.trim()],
-      });
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setFormData({
-      ...formData,
-      tags: formData.tags?.filter((t) => t !== tag) || [],
-    });
   };
 
   return (
@@ -196,6 +179,71 @@ export default function HealthInfoModal({
             />
           </div>
 
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-slate-600 font-medium mb-1">
+                Loại bệnh
+              </label>
+              <select
+                value={formData.diseaseType}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    diseaseType: e.target.value as HealthInfoDiseaseType,
+                  })
+                }
+                className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+              >
+                <option value="general">general</option>
+                <option value="dengue">dengue</option>
+                <option value="covid">covid</option>
+                <option value="flu">flu</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600 font-medium mb-1">
+                Đối tượng
+              </label>
+              <select
+                value={formData.target}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    target: e.target.value as HealthInfoTarget,
+                  })
+                }
+                className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+              >
+                <option value="general">general</option>
+                <option value="children">children</option>
+                <option value="elderly">elderly</option>
+                <option value="pregnant">pregnant</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600 font-medium mb-1">
+                Mức độ
+              </label>
+              <select
+                value={formData.severityLevel}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    severityLevel: e.target.value as HealthInfoSeverity,
+                  })
+                }
+                className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+              >
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="emergency">emergency</option>
+              </select>
+            </div>
+          </div>
+
           {/* Content */}
           <div>
             <label className="block text-sm text-slate-600 font-medium mb-1">
@@ -212,68 +260,6 @@ export default function HealthInfoModal({
               className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
               placeholder="Nhập nội dung chi tiết..."
             />
-          </div>
-
-          {/* Thumbnail URL */}
-          <div>
-            <label className="block text-sm text-slate-600 font-medium mb-1">
-              URL Ảnh đại diện
-            </label>
-            <input
-              type="url"
-              value={formData.thumbnailUrl}
-              onChange={(e) =>
-                setFormData({ ...formData, thumbnailUrl: e.target.value })
-              }
-              className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-              placeholder="https://..."
-            />
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm text-slate-600 font-medium mb-1">
-              Tags
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                className="flex-1 bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-                placeholder="Nhập tag và Enter..."
-              />
-              <button
-                type="button"
-                onClick={handleAddTag}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium"
-              >
-                Thêm
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {formData.tags?.map((tag) => (
-                <span
-                  key={tag}
-                  className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag)}
-                    className="text-red-500 hover:text-red-600"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
           </div>
 
           {/* Source */}
@@ -306,22 +292,6 @@ export default function HealthInfoModal({
                 placeholder="https://..."
               />
             </div>
-          </div>
-
-          {/* Featured */}
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="isFeatured"
-              checked={formData.isFeatured}
-              onChange={(e) =>
-                setFormData({ ...formData, isFeatured: e.target.checked })
-              }
-              className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
-            />
-            <label htmlFor="isFeatured" className="text-sm text-slate-700">
-              ⭐ Đánh dấu là bài viết nổi bật
-            </label>
           </div>
 
           {/* Actions */}
