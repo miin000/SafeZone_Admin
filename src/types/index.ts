@@ -501,7 +501,8 @@ export interface Stats {
 export type DisplayMode = 
   | 'points_disease' 
   | 'points_status'
-  | 'heatmap';
+  | 'heatmap'
+  | 'clusters_dbscan';
 
 export type BaseMapStyle = 'osm' | 'dark' | 'light' | 'satellite';
 
@@ -531,6 +532,64 @@ export interface GridDensityData {
   total_cases: number;
   max_count: number;
   max_severity: number;
+}
+
+export interface DBSCANCluster {
+  id: number;
+  count: number;
+  center: {
+    lat: number;
+    lon: number;
+  };
+  severity: {
+    total: number;
+    average: number;
+    max: number;
+    combined: number;
+    score?: number;
+  };
+  diseases: string[];
+  statuses: string[];
+  dbscan: {
+    pointTypeSummary: {
+      core: number;
+      border: number;
+    };
+    neighbors: {
+      min: number;
+      max: number;
+    };
+  };
+  timeRange: {
+    earliest: string;
+    latest: string;
+  };
+}
+
+export interface DBSCANNoisePoint {
+  id: number;
+  disease_type: string;
+  status: string;
+  severity: number;
+  reported_time: string;
+  lat: number;
+  lon: number;
+}
+
+export interface DBSCANClustersResponse {
+  algorithm: 'DBSCAN';
+  parameters: {
+    epsDegrees: number;
+    epsKmApprox: number;
+    minPoints: number;
+    includeNoise: boolean;
+  };
+  totalClusters: number;
+  totalCasesInClusters: number;
+  noiseCount: number;
+  totalCases: number;
+  clusters: DBSCANCluster[];
+  noisePoints: DBSCANNoisePoint[];
 }
 
 // ============================================

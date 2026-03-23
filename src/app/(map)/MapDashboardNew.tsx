@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
-import type { DisplayMode, Case, Stats } from '@/types';
+import type { DisplayMode, Case, Stats, DBSCANClustersResponse } from '@/types';
 import { 
   getStatusColor, 
   getDiseaseColor, 
@@ -71,9 +71,16 @@ export default function MapDashboard() {
   const [regions, setRegions] = useState<any>(null);
   const [cases, setCases] = useState<FeatureCollection | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [clusters, setClusters] = useState<DBSCANClustersResponse | null>(null);
+  const [clustersLoading, setClustersLoading] = useState(false);
   const [zones, setZones] = useState<Zone[]>([]);
   const [diseaseOptions, setDiseaseOptions] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
+
+  // DBSCAN tuning
+  const [dbscanEpsKm, setDbscanEpsKm] = useState<number>(3);
+  const [dbscanMinPoints, setDbscanMinPoints] = useState<number>(4);
+  const [dbscanIncludeNoise, setDbscanIncludeNoise] = useState<boolean>(false);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -136,6 +143,28 @@ export default function MapDashboard() {
   useEffect(() => {
     loadCases();
   }, [loadCases]);
+
+  // Load DBSCAN clusters (on-demand when cluster mode is selected)
+  const loadClusters = useCallback(() => {
+    const sp = new URLSearchParams(buildParams());
+    sp.set('clusterDistanceKm', String(dbscanEpsKm));
+    sp.set('minPoints', String(dbscanMinPoints));
+    if (dbscanIncludeNoise) {
+      sp.set('includeNoise', 'true');
+    }
+
+    setClustersLoading(true);
+    fetch(`${API}/gis/clusters?${sp.toString()}`)
+      .then(r => r.json())
+      .then((data: DBSCANClustersResponse) => setClusters(data))
+      .catch(err => console.error('Error loading DBSCAN clusters:', err))
+      .finally(() => setClustersLoading(false));
+  }, [buildParams, dbscanEpsKm, dbscanMinPoints, dbscanIncludeNoise]);
+
+  useEffect(() => {
+    if (mode !== 'clusters_dbscan') return;
+    loadClusters();
+  }, [mode, loadClusters]);
 
   // Quick date filter handler
   const handleQuickFilter = (filter: string) => {
@@ -274,6 +303,7 @@ export default function MapDashboard() {
                 mode={mode}
                 regions={regions}
                 cases={cases}
+                clusters={clusters}
                 zones={zones}
                 onCaseClick={handleCaseClick}
                 onZoneClick={handleZoneClick}
@@ -376,6 +406,14 @@ export default function MapDashboard() {
                     zones={zones}
                     showTimeline={showTimeline}
                     setShowTimeline={setShowTimeline}
+                    dbscanEpsKm={dbscanEpsKm}
+                    setDbscanEpsKm={setDbscanEpsKm}
+                    dbscanMinPoints={dbscanMinPoints}
+                    setDbscanMinPoints={setDbscanMinPoints}
+                    dbscanIncludeNoise={dbscanIncludeNoise}
+                    setDbscanIncludeNoise={setDbscanIncludeNoise}
+                    clusters={clusters}
+                    clustersLoading={clustersLoading}
                   />
                 ) : (
                   <StatsPanel stats={stats} />
@@ -437,6 +475,14 @@ function FiltersPanel({
   zones,
   showTimeline,
   setShowTimeline,
+  dbscanEpsKm,
+  setDbscanEpsKm,
+  dbscanMinPoints,
+  setDbscanMinPoints,
+  dbscanIncludeNoise,
+  setDbscanIncludeNoise,
+  clusters,
+  clustersLoading,
 }: any) {
   return (
     <div>
@@ -475,8 +521,59 @@ function FiltersPanel({
           <option value="points_disease">🦠 Theo loại bệnh</option>
           <option value="points_status">📊 Theo trạng thái</option>
           <option value="heatmap">🔥 Bản đồ nhiệt</option>
+          <option value="clusters_dbscan">🧩 Cụm DBSCAN</option>
         </select>
       </div>
+
+      {mode === 'clusters_dbscan' && (
+        <div style={{ ...filterGroupStyle, border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
+            Thiết lập DBSCAN
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div>
+              <label style={labelStyle}>eps (km)</label>
+              <input
+                type="number"
+                min={0.5}
+                max={20}
+                step={0.5}
+                value={dbscanEpsKm}
+                onChange={(e) => setDbscanEpsKm(Number(e.target.value || 3))}
+                style={selectStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>minPoints</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                step={1}
+                value={dbscanMinPoints}
+                onChange={(e) => setDbscanMinPoints(Number(e.target.value || 4))}
+                style={selectStyle}
+              />
+            </div>
+          </div>
+          <label style={checkboxLabelStyle}>
+            <input
+              type="checkbox"
+              checked={dbscanIncludeNoise}
+              onChange={(e) => setDbscanIncludeNoise(e.target.checked)}
+              style={{ accentColor: '#10b981' }}
+            />
+            <span>Hiển thị noise points</span>
+          </label>
+          <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>
+            {clustersLoading
+              ? 'Đang chạy DBSCAN...'
+              : clusters
+              ? `Clusters: ${clusters.totalClusters} | In clusters: ${clusters.totalCasesInClusters} | Noise: ${clusters.noiseCount}`
+              : 'Chưa có dữ liệu DBSCAN'}
+          </div>
+        </div>
+      )}
 
       {/* Disease Type */}
       <div style={filterGroupStyle}>

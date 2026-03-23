@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Case, CaseFormData, CasesListResponse, Stats, DisplayMode } from '@/types';
+import type {
+  Case,
+  CaseFormData,
+  CasesListResponse,
+  Stats,
+  DisplayMode,
+  DBSCANClustersResponse,
+} from '@/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -53,6 +60,47 @@ export function useCases(filters: { diseaseType?: string; status?: string; from?
   }, [refetch]);
 
   return { cases, loading, error, refetch };
+}
+
+export function useCaseClusters(filters: {
+  diseaseType?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  epsKm?: number;
+  minPoints?: number;
+  includeNoise?: boolean;
+}) {
+  const [data, setData] = useState<DBSCANClustersResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refetch = useCallback(() => {
+    const sp = new URLSearchParams();
+    if (filters.diseaseType && filters.diseaseType !== 'ALL') sp.set('diseaseType', filters.diseaseType);
+    if (filters.status && filters.status !== 'ALL') sp.set('status', filters.status);
+    if (filters.from) sp.set('from', filters.from);
+    if (filters.to) sp.set('to', filters.to);
+    if (filters.epsKm && filters.epsKm > 0) sp.set('clusterDistanceKm', String(filters.epsKm));
+    if (filters.minPoints && filters.minPoints > 0) sp.set('minPoints', String(filters.minPoints));
+    if (filters.includeNoise) sp.set('includeNoise', 'true');
+
+    setLoading(true);
+    fetch(`${API}/gis/clusters?${sp.toString()}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`Failed to load clusters: ${r.status}`);
+        return r.json();
+      })
+      .then(setData)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [filters.diseaseType, filters.status, filters.from, filters.to, filters.epsKm, filters.minPoints, filters.includeNoise]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
 }
 
 export function useCasesList(filters: {

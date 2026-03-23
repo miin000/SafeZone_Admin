@@ -6,9 +6,16 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import type { FeatureCollection } from 'geojson';
 import type { LatLngExpression, LatLngBoundsExpression } from 'leaflet';
 import HeatLayer from './HeatLayer';
+import DBSCANClusterLayer from '@/components/map/DBSCANClusterLayer';
 import ZoneLayer from '@/components/map/ZoneLayer';
 import CasesLayer from '@/components/map/CasesLayer';
-import type { DisplayMode, Case, BaseMapStyle, MapLayerConfig } from '@/types';
+import type {
+  DisplayMode,
+  Case,
+  BaseMapStyle,
+  MapLayerConfig,
+  DBSCANClustersResponse,
+} from '@/types';
 import { 
   DISEASE_COLORS, 
   STATUS_COLORS, 
@@ -45,6 +52,7 @@ interface MapViewProps {
   mode: DisplayMode;
   regions: any;
   cases: FeatureCollection | null;
+  clusters?: DBSCANClustersResponse | null;
   zones?: Zone[];
   onCaseClick?: (caseData: Case) => void;
   onZoneClick?: (zone: Zone) => void;
@@ -86,6 +94,7 @@ export default function MapView({
   mode, 
   regions, 
   cases,
+  clusters = null,
   zones = [],
   onCaseClick,
   onZoneClick,
@@ -135,6 +144,7 @@ export default function MapView({
 
   // Determine if we should show case points
   const showPoints = mode === 'points_disease' || mode === 'points_status';
+  const showClusters = mode === 'clusters_dbscan';
 
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
@@ -192,12 +202,18 @@ export default function MapView({
           />
         )}
 
+        {/* DBSCAN clusters layer */}
+        {showClusters && layerConfig.showCases && (
+          <DBSCANClusterLayer data={clusters} />
+        )}
+
         {/* Legend */}
         <Legend
           mode={mode}
           diseaseColor={diseaseColor}
           statusColor={statusColor}
           cases={cases}
+          clusters={clusters}
         />
       </MapContainer>
 
@@ -243,11 +259,13 @@ function Legend({
   diseaseColor,
   statusColor,
   cases,
+  clusters,
 }: {
   mode: DisplayMode;
   diseaseColor: ReturnType<typeof makeCategoricalColorMap>;
   statusColor: ReturnType<typeof makeStatusColorMap>;
   cases: FeatureCollection | null;
+  clusters: DBSCANClustersResponse | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const diseaseItems = useMemo(() => {
@@ -284,6 +302,8 @@ function Legend({
       ? '🦠 Loại bệnh / Disease Type'
       : mode === 'points_status'
       ? '📊 Trạng thái / Status'
+      : mode === 'clusters_dbscan'
+      ? '🧩 Cụm DBSCAN / DBSCAN Clusters'
       : '🔥 Bản đồ nhiệt / Heatmap';
 
   return (
@@ -352,6 +372,31 @@ function Legend({
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>
                 <span>Thấp / Low</span>
                 <span>Cao / High</span>
+              </div>
+            </div>
+          ) : mode === 'clusters_dbscan' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 11, color: '#ffffff', opacity: 0.9 }}>
+                Cụm DBSCAN: vòng tròn càng lớn = càng nhiều ca
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+                  <span style={{ fontSize: 11, color: '#ffffff' }}>Cụm nặng (combined 3)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
+                  <span style={{ fontSize: 11, color: '#ffffff' }}>Cụm trung bình (combined 2)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                  <span style={{ fontSize: 11, color: '#ffffff' }}>Cụm nhẹ (combined 1)</span>
+                </div>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(255,255,255,0.72)' }}>
+                {clusters
+                  ? `eps≈${clusters.parameters.epsKmApprox.toFixed(2)}km | minPts=${clusters.parameters.minPoints} | clusters=${clusters.totalClusters} | noise=${clusters.noiseCount}`
+                  : 'Đang tải dữ liệu DBSCAN...'}
               </div>
             </div>
           ) : (

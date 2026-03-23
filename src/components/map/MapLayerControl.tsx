@@ -23,6 +23,7 @@ export default function MapLayerControl({
     { value: 'points_disease', icon: '🦠', label: 'By Disease', labelVi: 'Theo loại bệnh' },
     { value: 'points_status', icon: '📊', label: 'By Status', labelVi: 'Theo trạng thái' },
     { value: 'heatmap', icon: '🔥', label: 'Heatmap', labelVi: 'Bản đồ nhiệt' },
+    { value: 'clusters_dbscan', icon: '🧩', label: 'DBSCAN Clusters', labelVi: 'Cụm DBSCAN' },
   ];
 
   const baseMaps: { value: BaseMapStyle; icon: string }[] = [
