@@ -24,6 +24,50 @@ import {
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
+function parseReportDate(dateStr?: string): Date | null {
+  if (!dateStr) return null;
+  const direct = new Date(dateStr);
+  if (!Number.isNaN(direct.getTime())) return direct;
+  const withZ = new Date(`${dateStr}Z`);
+  if (!Number.isNaN(withZ.getTime())) return withZ;
+  return null;
+}
+
+function getTimeAgoLabel(dateStr?: string): string {
+  const date = parseReportDate(dateStr);
+  if (!date) return 'Không xác định';
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Vừa xong';
+  if (diffMins < 60) return `${diffMins} phút trước`;
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  return `${diffDays} ngày trước`;
+}
+
+function parseContactHistory(raw?: string): Array<{ name: string; phone?: string; relationship?: string; address?: string }> {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((p) => p && typeof p === 'object' && typeof p.name === 'string')
+      .map((p) => ({
+        name: String(p.name || '').trim(),
+        phone: typeof p.phone === 'string' ? p.phone.trim() : undefined,
+        relationship: typeof p.relationship === 'string' ? p.relationship.trim() : undefined,
+        address: typeof p.address === 'string' ? p.address.trim() : undefined,
+      }))
+      .filter((p) => p.name.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 // Helper: extract lat/lon from Report (supports GeoJSON location)
 function getReportCoords(report: Report): { lat: number; lon: number } {
   if (report.location?.coordinates) {
@@ -74,9 +118,7 @@ function getWorkflowActions(status: ReportStatus): { key: string; label: string;
     case 'submitted':
       return [{ key: 'preliminary-review', label: 'Xem xét sơ bộ', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' }];
     case 'under_review':
-      return [
-        { key: 'preliminary-review', label: 'Hoàn tất xem xét', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' },
-      ];
+      return [{ key: 'official-confirm', label: 'Duyệt xác nhận', icon: '✅', color: 'bg-emerald-500 hover:bg-emerald-600' }];
     case 'field_verification':
       return [{ key: 'field-verify', label: 'Xác minh thực địa', icon: '🏥', color: 'bg-orange-500 hover:bg-orange-600' }];
     case 'confirmed':
@@ -85,8 +127,9 @@ function getWorkflowActions(status: ReportStatus): { key: string; label: string;
         { key: 'close', label: 'Đóng báo cáo', icon: '📁', color: 'bg-slate-500 hover:bg-slate-600' },
       ];
     case 'pending':
+      return [];
     case 'verified':
-      return [{ key: 'preliminary-review', label: 'Xem xét sơ bộ', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' }];
+      return [{ key: 'official-confirm', label: 'Duyệt xác nhận', icon: '✅', color: 'bg-emerald-500 hover:bg-emerald-600' }];
     default:
       return [];
   }
@@ -226,6 +269,7 @@ export default function ReportsPage() {
       submitted: reports.filter(r => r.status === 'submitted' || r.status === 'pending').length,
       under_review: reports.filter(r => r.status === 'under_review').length,
       field_verification: reports.filter(r => r.status === 'field_verification').length,
+      pending_publication: reports.filter(r => r.status === 'pending').length,
       confirmed: reports.filter(r => r.status === 'confirmed' || r.status === 'verified').length,
       rejected: reports.filter(r => r.status === 'rejected').length,
       closed: reports.filter(r => r.status === 'closed' || r.status === 'resolved').length,
@@ -321,16 +365,16 @@ export default function ReportsPage() {
     setWorkflowAction(null);
   };
 
-  const handleOfficialConfirm = async (reportId: string, classification: OfficialClassification, note?: string, createCase?: boolean) => {
+  const handleOfficialConfirm = async (reportId: string, classification: OfficialClassification, note?: string) => {
     try {
       const res = await fetch(`${API}/reports/${reportId}/official-confirm`, {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({ classification, note, createCase }),
+        body: JSON.stringify({ classification, note }),
       });
       if (res.ok) {
         await loadReports();
-        alert('✅ Xác nhận chính thức thành công!');
+        alert('✅ Duyệt thành công! Báo cáo đã vào hàng chờ công bố chính thức.');
       } else {
         if (!handleAuthError(res.status)) {
           alert('❌ Lỗi xử lý xác nhận chính thức');
@@ -380,22 +424,7 @@ export default function ReportsPage() {
     } catch { alert('❌ Lỗi kết nối'); }
   };
 
-  const getTimeAgo = (dateStr: string) => {
-    if (!dateStr) return 'Không xác định';
-    const date = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
-    if (isNaN(date.getTime())) return 'Không xác định';
-    
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 0) return 'Vừa xong';
-    if (diffMins < 60) return `${diffMins} phút trước`;
-    if (diffHours < 24) return `${diffHours} giờ trước`;
-    return `${diffDays} ngày trước`;
-  };
+  const getTimeAgo = (dateStr: string) => getTimeAgoLabel(dateStr);
 
   return (
     <div className="flex">
@@ -416,7 +445,7 @@ export default function ReportsPage() {
         {/* Page Content */}
         <div className="p-6 bg-slate-50 min-h-[calc(100vh-80px)]">
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
             <div 
               onClick={() => setStatusFilter('ALL')}
               className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
@@ -456,6 +485,16 @@ export default function ReportsPage() {
               <div className="text-2xl mb-2">🏥</div>
               <div className="text-2xl font-bold text-orange-600">{stats.field_verification}</div>
               <div className="text-xs text-slate-500">Thực địa</div>
+            </div>
+            <div 
+              onClick={() => setStatusFilter('pending')}
+              className={`card p-4 cursor-pointer transition-all hover:shadow-md ${
+                statusFilter === 'pending' ? 'ring-2 ring-amber-500 bg-amber-50' : ''
+              }`}
+            >
+              <div className="text-2xl mb-2">⏳</div>
+              <div className="text-2xl font-bold text-amber-600">{stats.pending_publication}</div>
+              <div className="text-xs text-slate-500">Chờ công bố</div>
             </div>
             <div 
               onClick={() => setStatusFilter('confirmed')}
@@ -780,7 +819,7 @@ export default function ReportsPage() {
           }}
           onPreliminaryReview={(result, note) => handlePreliminaryReview(selectedReport.id, result, note)}
           onFieldVerify={(result, note) => handleFieldVerify(selectedReport.id, result, note)}
-          onOfficialConfirm={(classification, note, createCase) => handleOfficialConfirm(selectedReport.id, classification, note, createCase)}
+          onOfficialConfirm={(classification, note) => handleOfficialConfirm(selectedReport.id, classification, note)}
           onCloseReport={(action, note) => handleCloseReport(selectedReport.id, action, note)}
         />
       )}
@@ -807,7 +846,7 @@ function ReviewModal({
   onClose: () => void; 
   onPreliminaryReview: (result: PreliminaryResult, note?: string) => void;
   onFieldVerify: (result: FieldVerificationResult, note?: string) => void;
-  onOfficialConfirm: (classification: OfficialClassification, note?: string, createCase?: boolean) => void;
+  onOfficialConfirm: (classification: OfficialClassification, note?: string) => void;
   onCloseReport: (action: ClosureAction, note?: string) => void;
 }) {
   const [activeAction, setActiveAction] = useState<string | null>(initialAction);
@@ -819,7 +858,6 @@ function ReviewModal({
   const [fieldResult, setFieldResult] = useState<FieldVerificationResult>('confirmed_suspected');
   // Official confirmation
   const [classification, setClassification] = useState<OfficialClassification>('suspected');
-  const [createCase, setCreateCase] = useState(false);
   // Close
   const [closureAction, setClosureAction] = useState<ClosureAction>('monitoring');
 
@@ -836,21 +874,9 @@ function ReviewModal({
     low: { color: '#22c55e', label: 'Thấp', icon: '🟢' },
   };
   const priorityConfig = priorityOptions[report.priority || 'medium'] || { color: '#94a3b8', label: 'N/A', icon: '⚪' };
+  const parsedContactHistory = parseContactHistory(report.patientInfo?.contactHistory);
 
-  const getTimeAgo = (dateStr: string) => {
-    if (!dateStr) return 'Không xác định';
-    const date = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
-    if (isNaN(date.getTime())) return 'Không xác định';
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    if (diffMins < 0) return 'Vừa xong';
-    if (diffMins < 60) return `${diffMins} phút trước`;
-    if (diffHours < 24) return `${diffHours} giờ trước`;
-    return `${diffDays} ngày trước`;
-  };
+  const getTimeAgo = (dateStr: string) => getTimeAgoLabel(dateStr);
 
   const handleSubmit = () => {
     switch (activeAction) {
@@ -861,7 +887,7 @@ function ReviewModal({
         onFieldVerify(fieldResult, note || undefined);
         break;
       case 'official-confirm':
-        onOfficialConfirm(classification, note || undefined, createCase);
+        onOfficialConfirm(classification, note || undefined);
         break;
       case 'close':
         onCloseReport(closureAction, note || undefined);
@@ -1138,7 +1164,22 @@ function ReviewModal({
                   {report.patientInfo.contactHistory && (
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Lịch sử tiếp xúc</div>
-                      <div className="p-3 bg-white rounded-lg text-sm">{report.patientInfo.contactHistory}</div>
+                      {parsedContactHistory.length > 0 ? (
+                        <div className="space-y-2">
+                          {parsedContactHistory.map((contact, idx) => (
+                            <div key={`${contact.name}-${idx}`} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                              <div className="font-semibold text-slate-800">{contact.name}</div>
+                              <div className="mt-1 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-slate-600">
+                                <div>SĐT: {contact.phone || 'Không có'}</div>
+                                <div>Quan hệ: {contact.relationship || 'Không rõ'}</div>
+                                <div>Địa chỉ: {contact.address || 'Không có'}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-white rounded-lg text-sm whitespace-pre-wrap">{report.patientInfo.contactHistory}</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1292,9 +1333,8 @@ function ReviewModal({
                       <option value="false_alarm">⚪ Báo động giả (False alarm)</option>
                     </select>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" id="createCase" checked={createCase} onChange={e => setCreateCase(e.target.checked)} className="w-4 h-4" />
-                    <label htmlFor="createCase" className="text-sm text-slate-700">Tạo ca bệnh trên GIS</label>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Sau khi duyệt thành công, báo cáo sẽ chuyển vào hàng chờ công bố chính thức. Hệ thống không tự tạo ca bệnh ngay.
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú</label>

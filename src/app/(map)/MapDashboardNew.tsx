@@ -76,6 +76,7 @@ export default function MapDashboard() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [diseaseOptions, setDiseaseOptions] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [pendingPublicationCount, setPendingPublicationCount] = useState(0);
 
   // DBSCAN tuning
   const [dbscanEpsKm, setDbscanEpsKm] = useState<number>(3);
@@ -107,6 +108,13 @@ export default function MapDashboard() {
   useEffect(() => {
     loadZones();
   }, [loadZones]);
+
+  useEffect(() => {
+    fetch(`${API}/reports?status=pending&page=1&limit=1`)
+      .then((r) => (r.ok ? r.json() : { total: 0 }))
+      .then((data) => setPendingPublicationCount(Number(data?.total || 0)))
+      .catch(() => setPendingPublicationCount(0));
+  }, [cases, zones]);
 
   // Build URL params
   const buildParams = useCallback(() => {
@@ -222,9 +230,13 @@ export default function MapDashboard() {
       return;
     }
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API}/zones/${zone.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ isActive: !zone.isActive }),
       });
       if (res.ok) {
@@ -414,6 +426,7 @@ export default function MapDashboard() {
                     setDbscanIncludeNoise={setDbscanIncludeNoise}
                     clusters={clusters}
                     clustersLoading={clustersLoading}
+                    pendingPublicationCount={pendingPublicationCount}
                   />
                 ) : (
                   <StatsPanel stats={stats} />
@@ -483,12 +496,13 @@ function FiltersPanel({
   setDbscanIncludeNoise,
   clusters,
   clustersLoading,
+  pendingPublicationCount,
 }: any) {
   return (
     <div>
       {/* Quick Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
           <div style={quickStatStyle}>
             <span style={{ fontSize: 20 }}>🏥</span>
             <div>
@@ -505,6 +519,13 @@ function FiltersPanel({
                   .reduce((sum: number, s: any) => sum + s.total, 0)}
               </div>
               <div style={quickStatLabelStyle}>Đang hoạt động</div>
+            </div>
+          </div>
+          <div style={{ ...quickStatStyle, background: 'linear-gradient(135deg, #fffbeb, #fef3c7)' }}>
+            <span style={{ fontSize: 20 }}>⏳</span>
+            <div>
+              <div style={{ ...quickStatValueStyle, color: '#b45309' }}>{pendingPublicationCount}</div>
+              <div style={quickStatLabelStyle}>Chờ công bố</div>
             </div>
           </div>
         </div>

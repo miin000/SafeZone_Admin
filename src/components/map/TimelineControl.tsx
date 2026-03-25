@@ -26,11 +26,12 @@ export default function TimelineControl({
   const [playing, setPlaying] = useState(isPlaying);
   const [currentDate, setCurrentDate] = useState(selectedDate || maxDate);
   const [speed, setSpeed] = useState(1);
+  const [direction, setDirection] = useState<1 | -1>(1);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const minTime = new Date(minDate).getTime();
-  const maxTime = new Date(maxDate).getTime();
-  const currentTime = new Date(currentDate).getTime();
+  const minTime = parseDateToUtcMs(minDate);
+  const maxTime = parseDateToUtcMs(maxDate);
+  const currentTime = parseDateToUtcMs(currentDate);
   const totalDays = Math.ceil((maxTime - minTime) / (1000 * 60 * 60 * 24));
 
   // Calculate position percentage
@@ -44,7 +45,7 @@ export default function TimelineControl({
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const percent = Number(e.target.value);
     const newTime = minTime + (percent / 100) * (maxTime - minTime);
-    const newDate = new Date(newTime).toISOString().split('T')[0];
+    const newDate = utcMsToDateString(newTime);
     setCurrentDate(newDate);
     onDateChange(newDate);
     
@@ -55,15 +56,14 @@ export default function TimelineControl({
 
   const stepForward = useCallback(() => {
     setCurrentDate(prev => {
-      const current = new Date(prev);
-      current.setDate(current.getDate() + 1);
+      const nextTime = parseDateToUtcMs(prev) + 24 * 60 * 60 * 1000;
       
-      if (current.getTime() > maxTime) {
+      if (nextTime > maxTime) {
         setPlaying(false);
         return maxDate;
       }
       
-      const newDate = current.toISOString().split('T')[0];
+      const newDate = utcMsToDateString(nextTime);
       onDateChange(newDate);
       if (onRangeChange) {
         onRangeChange(minDate, newDate);
@@ -74,14 +74,14 @@ export default function TimelineControl({
 
   const stepBackward = useCallback(() => {
     setCurrentDate(prev => {
-      const current = new Date(prev);
-      current.setDate(current.getDate() - 1);
+      const nextTime = parseDateToUtcMs(prev) - 24 * 60 * 60 * 1000;
       
-      if (current.getTime() < minTime) {
+      if (nextTime < minTime) {
+        setPlaying(false);
         return minDate;
       }
       
-      const newDate = current.toISOString().split('T')[0];
+      const newDate = utcMsToDateString(nextTime);
       onDateChange(newDate);
       if (onRangeChange) {
         onRangeChange(minDate, newDate);
@@ -118,7 +118,11 @@ export default function TimelineControl({
   useEffect(() => {
     if (playing) {
       intervalRef.current = setInterval(() => {
-        stepForward();
+        if (direction === 1) {
+          stepForward();
+        } else {
+          stepBackward();
+        }
       }, interval / speed);
     } else {
       if (intervalRef.current) {
@@ -132,7 +136,7 @@ export default function TimelineControl({
         clearInterval(intervalRef.current);
       }
     };
-  }, [playing, interval, speed, stepForward]);
+  }, [playing, interval, speed, stepForward, stepBackward, direction]);
 
   // Sync with external isPlaying
   useEffect(() => {
@@ -235,6 +239,8 @@ export default function TimelineControl({
           max={100}
           value={position}
           onChange={handleSliderChange}
+          title="Mốc thời gian"
+          aria-label="Mốc thời gian"
           style={{
             position: 'absolute',
             top: 12,
@@ -284,6 +290,19 @@ export default function TimelineControl({
           <button onClick={stepBackward} style={controlButtonStyle} title="Lùi 1 ngày">
             ◀
           </button>
+          <button
+            onClick={() => {
+              setDirection(-1);
+              setPlaying(true);
+            }}
+            style={{
+              ...controlButtonStyle,
+              background: direction === -1 && playing ? '#d97706' : '#21262d',
+            }}
+            title="Tua ngược"
+          >
+            ⏪
+          </button>
           <button 
             onClick={togglePlay} 
             style={{
@@ -297,6 +316,19 @@ export default function TimelineControl({
           </button>
           <button onClick={stepForward} style={controlButtonStyle} title="Tiến 1 ngày">
             ▶
+          </button>
+          <button
+            onClick={() => {
+              setDirection(1);
+              setPlaying(true);
+            }}
+            style={{
+              ...controlButtonStyle,
+              background: direction === 1 && playing ? '#2563eb' : '#21262d',
+            }}
+            title="Tua xuôi"
+          >
+            ⏩
           </button>
           <button onClick={goToEnd} style={controlButtonStyle} title="Về cuối">
             ⏭
@@ -341,29 +373,29 @@ function generateMonthTicks(minDate: string, maxDate: string): Array<{
     showLabel: boolean;
   }> = [];
 
-  const min = new Date(minDate);
-  const max = new Date(maxDate);
+  const min = parseDateToUtc(minDate);
+  const max = parseDateToUtc(maxDate);
   const totalTime = max.getTime() - min.getTime();
 
   // Start from first day of min month
-  const current = new Date(min.getFullYear(), min.getMonth(), 1);
+  const current = new Date(Date.UTC(min.getUTCFullYear(), min.getUTCMonth(), 1));
   
   let tickCount = 0;
   while (current <= max) {
     const position = ((current.getTime() - min.getTime()) / totalTime) * 100;
-    const isYear = current.getMonth() === 0;
+    const isYear = current.getUTCMonth() === 0;
     
     ticks.push({
       date: current.toISOString().split('T')[0],
       position: Math.max(0, Math.min(100, position)),
       label: isYear 
-        ? current.getFullYear().toString()
-        : `T${current.getMonth() + 1}`,
+        ? current.getUTCFullYear().toString()
+        : `T${current.getUTCMonth() + 1}`,
       isYear,
       showLabel: tickCount % 2 === 0 || isYear,
     });
     
-    current.setMonth(current.getMonth() + 1);
+    current.setUTCMonth(current.getUTCMonth() + 1);
     tickCount++;
     
     // Safety limit
@@ -375,7 +407,7 @@ function generateMonthTicks(minDate: string, maxDate: string): Array<{
 
 // Helper: Format date in Vietnamese with time
 function formatDateVi(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseDateToUtc(dateStr);
   const dateFormatted = date.toLocaleDateString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -390,12 +422,28 @@ function formatDateVi(dateStr: string): string {
 
 // Helper: Format date without time
 function formatDateOnlyVi(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseDateToUtc(dateStr);
   return date.toLocaleDateString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
+}
+
+function parseDateToUtc(dateStr: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  return new Date(dateStr);
+}
+
+function parseDateToUtcMs(dateStr: string): number {
+  return parseDateToUtc(dateStr).getTime();
+}
+
+function utcMsToDateString(ms: number): string {
+  return new Date(ms).toISOString().split('T')[0];
 }
 
 const controlButtonStyle: React.CSSProperties = {

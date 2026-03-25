@@ -181,6 +181,19 @@ export default function ZoneLayer({
         permanent: false,
         sticky: true,
       });
+
+      circle.bindPopup(
+        `
+          <div style="min-width:200px;padding:6px 4px;">
+            <div style="font-weight:700;font-size:13px;margin-bottom:8px;">${zone.name}</div>
+            <div style="display:flex;gap:8px;">
+              <button data-action="edit-zone" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;">✏️ Chỉnh sửa</button>
+              <button data-action="toggle-zone" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;cursor:pointer;">⏸ Tắt vùng</button>
+            </div>
+          </div>
+        `,
+        { closeButton: true },
+      );
       
       // Add hover effects
       circle.on('mouseover', () => {
@@ -190,9 +203,33 @@ export default function ZoneLayer({
         circle.setStyle({ weight: 3, fillOpacity: opacity });
       });
       
-      // Add click to open details/edit
+      // Single click opens action popup, double click opens edit modal.
       circle.on('click', () => {
+        circle.openPopup();
+      });
+      circle.on('dblclick', () => {
         onZoneClickRef.current?.(zone);
+      });
+
+      circle.on('popupopen', (event) => {
+        const root = event.popup.getElement();
+        if (!root) return;
+        const editBtn = root.querySelector('[data-action="edit-zone"]');
+        const toggleBtn = root.querySelector('[data-action="toggle-zone"]');
+
+        editBtn?.addEventListener('click', () => {
+          onZoneClickRef.current?.(zone);
+          map.closePopup();
+        });
+        toggleBtn?.addEventListener('click', () => {
+          onToggleActiveRef.current?.(zone);
+          map.closePopup();
+        });
+      });
+
+      // Quick shortcut: right-click to toggle active status.
+      circle.on('contextmenu', () => {
+        onToggleActiveRef.current?.(zone);
       });
       
       layerGroup.addLayer(circle);

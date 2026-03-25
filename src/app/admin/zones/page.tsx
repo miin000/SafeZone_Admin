@@ -42,6 +42,7 @@ export default function ZonesPage() {
   const [sidebarCollapsed] = useState(false);
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingPublicationCount, setPendingPublicationCount] = useState(0);
 
   // Filters
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
@@ -73,6 +74,12 @@ export default function ZonesPage() {
         setZones(Array.isArray(data) ? data : data.data || []);
       } else {
         setZones([]);
+      }
+
+      const pendingRes = await fetch(`${API}/reports?status=pending&page=1&limit=1`);
+      if (pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        setPendingPublicationCount(Number(pendingData?.total || 0));
       }
     } catch (err) {
       console.error('Error loading zones:', err);
@@ -130,8 +137,10 @@ export default function ZonesPage() {
     if (!deleteConfirm.zoneId) return;
     
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API}/zones/${deleteConfirm.zoneId}`, {
         method: 'DELETE',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
       });
       if (res.ok) {
         loadZones();
@@ -146,9 +155,13 @@ export default function ZonesPage() {
   // Handle toggle active
   const handleToggleActive = async (zone: Zone) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API}/zones/${zone.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ isActive: !zone.isActive }),
       });
       if (res.ok) {
@@ -262,6 +275,13 @@ export default function ZonesPage() {
               <div className="text-2xl mb-2">🟢</div>
               <div className="text-2xl font-bold text-green-600">{stats.low}</div>
               <div className="text-xs text-slate-500">Thấp</div>
+            </div>
+          </div>
+
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <div className="text-sm font-semibold">⏳ Hàng chờ công bố chính thức</div>
+            <div className="mt-1 text-sm">
+              Hiện có <span className="font-bold">{pendingPublicationCount}</span> báo cáo ca bệnh đã duyệt đang chờ công bố vào danh sách ca bệnh/vùng dịch chính thức.
             </div>
           </div>
 

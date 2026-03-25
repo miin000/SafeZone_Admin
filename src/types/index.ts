@@ -99,7 +99,7 @@ export const REPORT_STATUS_CONFIG: Record<string, {
   rejected: { label: 'Rejected', labelVi: 'Từ chối', color: '#f44336', icon: '❌', bgColor: '#f4433620' },
   closed: { label: 'Closed', labelVi: 'Đã đóng', color: '#607d8b', icon: '📁', bgColor: '#607d8b20' },
   // Backward compat
-  pending: { label: 'Pending', labelVi: 'Chờ duyệt', color: '#ff9800', icon: '⏳', bgColor: '#ff980020' },
+  pending: { label: 'Pending Publication', labelVi: 'Chờ công bố', color: '#ff9800', icon: '⏳', bgColor: '#ff980020' },
   verified: { label: 'Verified', labelVi: 'Đã xác minh', color: '#4caf50', icon: '✓', bgColor: '#4caf5020' },
   resolved: { label: 'Resolved', labelVi: 'Đã giải quyết', color: '#607d8b', icon: '✔', bgColor: '#607d8b20' },
 };
@@ -262,7 +262,6 @@ export interface FieldVerificationPayload {
 export interface OfficialConfirmationPayload {
   classification: OfficialClassification;
   note?: string;
-  createCase?: boolean;
 }
 
 /** Close report payload */
@@ -275,7 +274,6 @@ export interface CloseReportPayload {
 export interface ReportReviewPayload {
   status: ReportStatus;
   adminNote?: string;
-  createCase?: boolean;
 }
 
 // Helper functions for reports
