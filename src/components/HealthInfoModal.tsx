@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type {
   HealthInfo,
   HealthInfoFormData,
@@ -24,8 +26,16 @@ export default function HealthInfoModal({
   onClose,
   onSave,
 }: HealthInfoModalProps) {
+  const markdownTemplate = `### 1. Triệu chứng
+- Sốt cao
+- Ho khan
+
+### 2. Cách phòng tránh
+- Đeo khẩu trang`;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
 
   const [formData, setFormData] = useState<HealthInfoFormData>({
     title: '',
@@ -246,20 +256,62 @@ export default function HealthInfoModal({
 
           {/* Content */}
           <div>
-            <label className="block text-sm text-slate-600 font-medium mb-1">
-              Nội dung <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={formData.content}
-              onChange={(e) =>
-                setFormData({ ...formData, content: e.target.value })
-              }
-              required
-              minLength={20}
-              rows={10}
-              className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
-              placeholder="Nhập nội dung chi tiết..."
-            />
+            <div className="flex items-center justify-between mb-1 gap-2">
+              <label className="block text-sm text-slate-600 font-medium">
+                Nội dung (hỗ trợ Markdown) <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      content: prev.content.trim()
+                        ? `${prev.content}\n\n${markdownTemplate}`
+                        : markdownTemplate,
+                    }))
+                  }
+                  className="px-3 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50"
+                >
+                  Chèn mẫu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode((prev) => !prev)}
+                  className="px-3 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 hover:bg-slate-50"
+                >
+                  {previewMode ? 'Soạn thảo' : 'Xem trước'}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-2">
+              Có thể dùng tiêu đề `###`, danh sách `-`, hoặc in đậm `**text**`.
+            </p>
+
+            {!previewMode ? (
+              <textarea
+                value={formData.content}
+                onChange={(e) =>
+                  setFormData({ ...formData, content: e.target.value })
+                }
+                required
+                minLength={20}
+                rows={10}
+                className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 font-mono text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                placeholder="Nhập nội dung chi tiết bằng Markdown..."
+              />
+            ) : (
+              <div className="w-full min-h-[240px] bg-white border border-slate-200 rounded-lg px-4 py-3 text-slate-800 prose prose-slate max-w-none">
+                {formData.content.trim() ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {formData.content}
+                  </ReactMarkdown>
+                ) : (
+                  <p className="text-slate-400 text-sm">Chưa có nội dung để xem trước.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Source */}
