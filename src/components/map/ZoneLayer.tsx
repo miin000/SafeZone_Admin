@@ -61,7 +61,7 @@ export default function ZoneLayer({
     map.whenReady(() => setMapReady(true));
   }, [map]);
   
-  // Store callbacks in refs to always have latest version
+  // Keep stable refs for optional external handlers.
   const onZoneClickRef = useRef(onZoneClick);
   const onToggleActiveRef = useRef(onToggleActive);
   
@@ -125,7 +125,7 @@ export default function ZoneLayer({
         ` : ''}
 
         <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 10px; color: #888; text-align: center;">
-          💡 Nhấn vào để xem chi tiết và chỉnh sửa
+          💡 Nhấn vào để xem thông tin vùng dịch
         </div>
       </div>
     `;
@@ -182,18 +182,7 @@ export default function ZoneLayer({
         sticky: true,
       });
 
-      circle.bindPopup(
-        `
-          <div style="min-width:200px;padding:6px 4px;">
-            <div style="font-weight:700;font-size:13px;margin-bottom:8px;">${zone.name}</div>
-            <div style="display:flex;gap:8px;">
-              <button data-action="edit-zone" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;">✏️ Chỉnh sửa</button>
-              <button data-action="toggle-zone" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;cursor:pointer;">⏸ Tắt vùng</button>
-            </div>
-          </div>
-        `,
-        { closeButton: true },
-      );
+      circle.bindPopup(createTooltipContent(zone), { closeButton: true });
       
       // Add hover effects
       circle.on('mouseover', () => {
@@ -203,33 +192,13 @@ export default function ZoneLayer({
         circle.setStyle({ weight: 3, fillOpacity: opacity });
       });
       
-      // Single click opens action popup, double click opens edit modal.
+      // Single click opens information popup only.
       circle.on('click', () => {
         circle.openPopup();
       });
+
       circle.on('dblclick', () => {
-        onZoneClickRef.current?.(zone);
-      });
-
-      circle.on('popupopen', (event) => {
-        const root = event.popup.getElement();
-        if (!root) return;
-        const editBtn = root.querySelector('[data-action="edit-zone"]');
-        const toggleBtn = root.querySelector('[data-action="toggle-zone"]');
-
-        editBtn?.addEventListener('click', () => {
-          onZoneClickRef.current?.(zone);
-          map.closePopup();
-        });
-        toggleBtn?.addEventListener('click', () => {
-          onToggleActiveRef.current?.(zone);
-          map.closePopup();
-        });
-      });
-
-      // Quick shortcut: right-click to toggle active status.
-      circle.on('contextmenu', () => {
-        onToggleActiveRef.current?.(zone);
+        circle.openPopup();
       });
       
       layerGroup.addLayer(circle);

@@ -17,6 +17,7 @@ const navItems = ADMIN_NAV_ITEMS;
 export default function AdminPage() {
   const [data, setData] = useState<CasesListResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingPublicationCount, setPendingPublicationCount] = useState(0);
   const [diseaseType, setDiseaseType] = useState<string>('ALL');
   const [status, setStatus] = useState<string>('ALL');
   const [from, setFrom] = useState<string>('');
@@ -67,6 +68,11 @@ export default function AdminPage() {
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
+
+    fetch(`${API}/reports?status=pending&page=1&limit=1`)
+      .then((r) => (r.ok ? r.json() : { total: 0 }))
+      .then((pendingData) => setPendingPublicationCount(Number(pendingData?.total || 0)))
+      .catch(() => setPendingPublicationCount(0));
   }, [diseaseType, status, from, to, search, page, limit]);
 
   useEffect(() => {
@@ -123,6 +129,15 @@ export default function AdminPage() {
         </div>
 
         <div className="p-6 bg-slate-50 min-h-[calc(100vh-200px)]">
+          {pendingPublicationCount > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <div className="text-sm font-semibold">⏳ Hàng chờ công bố chính thức</div>
+              <div className="text-sm mt-1">
+                Hiện có <span className="font-bold">{pendingPublicationCount}</span> báo cáo ca bệnh đã duyệt đang chờ công bố vào danh sách ca bệnh/vùng dịch chính thức.
+              </div>
+            </div>
+          )}
+
           {/* Filters */}
           <div className="flex flex-wrap gap-4 mb-6 bg-white rounded-lg p-4 border border-slate-200">
             <div className="flex-1 min-w-52">

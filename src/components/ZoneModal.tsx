@@ -162,12 +162,71 @@ export default function ZoneModal({
     }
   }, [zoneId, isOpen, initialLocation, diseaseTypes]);
 
+  const calculateAutoCaseCount = (
+    points: ZoneCasePoint[],
+    diseaseType: string,
+    lat: number,
+    lon: number,
+    radiusKm: number,
+  ): number => {
+    if (!diseaseType || !Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(radiusKm)) {
+      return 0;
+    }
+
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const earthKm = 6371;
+    const activeStatuses = new Set([
+      'suspected',
+      'probable',
+      'confirmed',
+      'under treatment',
+      'under observation',
+    ]);
+
+    return points.filter((p) => {
+      if (p.diseaseType !== diseaseType) return false;
+      if (!activeStatuses.has(p.status)) return false;
+
+      const dLat = toRad(p.lat - lat);
+      const dLon = toRad(p.lon - lon);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat)) * Math.cos(toRad(p.lat)) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceKm = earthKm * c;
+      return distanceKm <= radiusKm;
+    }).length;
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const autoCount = calculateAutoCaseCount(
+      casePoints,
+      formData.diseaseType,
+      formData.lat,
+      formData.lon,
+      formData.radiusKm,
+    );
+    if (autoCount !== formData.caseCount) {
+      setFormData((prev) => ({ ...prev, caseCount: autoCount }));
+    }
+  }, [
+    isOpen,
+    casePoints,
+    formData.diseaseType,
+    formData.lat,
+    formData.lon,
+    formData.radiusKm,
+    formData.caseCount,
+  ]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target;
     // Handle numeric fields (both number and range inputs)
-    const numericFields = ['lat', 'lon', 'radiusKm', 'caseCount'];
+    const numericFields = ['lat', 'lon', 'radiusKm'];
     const isNumeric = type === 'number' || type === 'range' || numericFields.includes(name);
     setFormData((prev) => ({
       ...prev,
@@ -384,17 +443,22 @@ export default function ZoneModal({
                 </button>
               </div>
 
-              {/* Case Count */}
+              {/* Case Count (auto) */}
               <div style={fieldStyle}>
                 <label style={labelStyle}>Số ca trong vùng / Case Count</label>
-                <input
-                  type="number"
-                  name="caseCount"
-                  value={formData.caseCount}
-                  onChange={handleChange}
-                  min="0"
-                  style={inputStyle}
-                />
+                <div
+                  style={{
+                    ...inputStyle,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: '#111827',
+                    borderColor: '#374151',
+                  }}
+                >
+                  <span>Tự động theo loại bệnh + vị trí + bán kính</span>
+                  <strong style={{ color: '#22c55e' }}>{formData.caseCount} ca</strong>
+                </div>
               </div>
 
               {/* Start Date with Time */}
