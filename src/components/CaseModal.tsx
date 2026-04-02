@@ -2,9 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import type { Case, CaseFormData } from '@/types';
+import type { Case, CaseFormData, PatientInfo } from '@/types';
 import { STATUS_OPTIONS, SEVERITY_LEVELS } from '@/types';
 import { getCaseById, createCase, updateCase } from '@/hooks/useGisData';
+import {
+  encodePatientDetailsInNotes,
+  parsePatientDetailsFromNotes,
+  normalizePatientInfo,
+} from '@/constants/patientDetails';
 
 const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false });
 
@@ -13,18 +18,20 @@ interface CaseModalProps {
   onClose: () => void;
   caseId?: string | null;
   initialData?: Partial<Case> | null;
+  initialPatientInfo?: PatientInfo | null;
   onSave: () => void;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
-export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave }: CaseModalProps) {
+export default function CaseModal({ isOpen, onClose, caseId, initialData, initialPatientInfo, onSave }: CaseModalProps) {
   const [diseaseTypes, setDiseaseTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationFetching, setLocationFetching] = useState(false);
+  const [detailedPatientInfo, setDetailedPatientInfo] = useState<PatientInfo | undefined>(undefined);
   const [formData, setFormData] = useState<CaseFormData>({
     disease_type: '',
     status: 'suspected',
@@ -95,6 +102,7 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
       setLoading(true);
       getCaseById(caseId)
         .then((c) => {
+          const parsedDetails = parsePatientDetailsFromNotes(c.notes);
           setFormData({
             disease_type: c.disease_type,
             status: c.status,
@@ -106,12 +114,14 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
             patient_name: c.patient_name || '',
             patient_age: c.patient_age,
             patient_gender: normalizeGender(c.patient_gender),
-            notes: c.notes || '',
+            notes: parsedDetails.baseNotes || '',
           });
+          setDetailedPatientInfo(parsedDetails.patientInfo);
         })
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
     } else if (isOpen && initialData) {
+      const parsedDetails = parsePatientDetailsFromNotes(initialData.notes || '');
       setFormData({
         disease_type: initialData.disease_type || diseaseTypes[0] || '',
         status: initialData.status || 'suspected',
@@ -123,8 +133,9 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
         patient_name: initialData.patient_name || '',
         patient_age: initialData.patient_age,
         patient_gender: normalizeGender(initialData.patient_gender),
-        notes: initialData.notes || '',
+        notes: parsedDetails.baseNotes || '',
       });
+      setDetailedPatientInfo(normalizePatientInfo(initialPatientInfo) || parsedDetails.patientInfo);
     } else if (isOpen) {
       // Reset form for new case
       setFormData({
@@ -139,9 +150,10 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
         patient_gender: '',
         notes: '',
       });
+      setDetailedPatientInfo(undefined);
     }
     setError(null);
-  }, [isOpen, caseId, initialData, diseaseTypes]);
+  }, [isOpen, caseId, initialData, initialPatientInfo, diseaseTypes]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,10 +161,15 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
     setError(null);
 
     try {
+      const payload: CaseFormData = {
+        ...formData,
+        notes: encodePatientDetailsInNotes(formData.notes, detailedPatientInfo),
+      };
+
       if (caseId) {
-        await updateCase(caseId, formData);
+        await updateCase(caseId, payload);
       } else {
-        await createCase(formData);
+        await createCase(payload);
       }
       onSave();
       onClose();
@@ -335,6 +352,88 @@ export default function CaseModal({ isOpen, onClose, caseId, initialData, onSave
                   placeholder="Ghi chú thêm..."
                 />
               </div>
+
+              {detailedPatientInfo && (
+                <div style={{ marginTop: 16, border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#f8fafc' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 10 }}>
+                    Thông tin chi tiết bệnh nhân
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, fontSize: 13, color: '#334155' }}>
+                    {detailedPatientInfo.idNumber && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>CCCD/CMND</div>
+                        <div>{detailedPatientInfo.idNumber}</div>
+                      </div>
+                    )}
+                    {detailedPatientInfo.phone && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>SĐT bệnh nhân</div>
+                        <div>{detailedPatientInfo.phone}</div>
+                      </div>
+                    )}
+                    {detailedPatientInfo.occupation && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>Nghề nghiệp</div>
+                        <div>{detailedPatientInfo.occupation}</div>
+                      </div>
+                    )}
+                    {detailedPatientInfo.workplace && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>Nơi làm việc/học tập</div>
+                        <div>{detailedPatientInfo.workplace}</div>
+                      </div>
+                    )}
+                    {detailedPatientInfo.symptomOnsetDate && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>Ngày khởi phát</div>
+                        <div>{new Date(detailedPatientInfo.symptomOnsetDate).toLocaleDateString('vi-VN')}</div>
+                      </div>
+                    )}
+                    {detailedPatientInfo.healthFacility && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>Cơ sở y tế</div>
+                        <div>{detailedPatientInfo.healthFacility}</div>
+                      </div>
+                    )}
+                    {typeof detailedPatientInfo.isHospitalized === 'boolean' && (
+                      <div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>Nhập viện</div>
+                        <div>{detailedPatientInfo.isHospitalized ? 'Có' : 'Không'}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {detailedPatientInfo.address && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ color: '#64748b', fontSize: 12 }}>Địa chỉ thường trú</div>
+                      <div style={{ fontSize: 13, color: '#334155' }}>{detailedPatientInfo.address}</div>
+                    </div>
+                  )}
+
+                  {detailedPatientInfo.underlyingConditions && detailedPatientInfo.underlyingConditions.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ color: '#64748b', fontSize: 12 }}>Bệnh nền</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {detailedPatientInfo.underlyingConditions.map((condition) => (
+                          <span
+                            key={condition}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 999,
+                              background: '#fee2e2',
+                              color: '#b91c1c',
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {condition}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

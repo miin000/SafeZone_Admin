@@ -26,11 +26,33 @@ const API = process.env.NEXT_PUBLIC_API_URL!;
 
 function parseReportDate(dateStr?: string): Date | null {
   if (!dateStr) return null;
-  const direct = new Date(dateStr);
-  if (!Number.isNaN(direct.getTime())) return direct;
-  const withZ = new Date(`${dateStr}Z`);
-  if (!Number.isNaN(withZ.getTime())) return withZ;
-  return null;
+  const normalized = dateStr.includes(' ')
+    ? dateStr.replace(' ', 'T')
+    : dateStr;
+
+  const hasTimezone =
+    normalized.endsWith('Z') || /([+-]\d{2}:?\d{2})$/.test(normalized);
+
+  if (hasTimezone) {
+    const parsed = new Date(normalized);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+    return null;
+  }
+
+  // Mixed backend date formats: timezone-less UTC and timezone-less local.
+  // Use whichever interpretation is closer to now.
+  const localCandidate = new Date(normalized);
+  const utcCandidate = new Date(`${normalized}Z`);
+  if (Number.isNaN(localCandidate.getTime()) && Number.isNaN(utcCandidate.getTime())) {
+    return null;
+  }
+  if (Number.isNaN(localCandidate.getTime())) return utcCandidate;
+  if (Number.isNaN(utcCandidate.getTime())) return localCandidate;
+
+  const now = Date.now();
+  const localDelta = Math.abs(now - localCandidate.getTime());
+  const utcDelta = Math.abs(now - utcCandidate.getTime());
+  return utcDelta <= localDelta ? utcCandidate : localCandidate;
 }
 
 function getTimeAgoLabel(dateStr?: string): string {

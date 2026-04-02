@@ -4,10 +4,11 @@ import { useState, useCallback, useEffect } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import { ADMIN_NAV_ITEMS } from '@/constants/navigation';
-import type { Case, CasesListResponse } from '@/types';
+import type { Case, CasesListResponse, PatientInfo, Report } from '@/types';
 import { STATUS_COLORS, SEVERITY_LEVELS, getBilingualDiseaseLabel, getBilingualStatusLabel } from '@/types';
 import CaseModal from '@/components/CaseModal';
 import { deleteCase } from '@/hooks/useGisData';
+import { parsePatientDetailsFromNotes } from '@/constants/patientDetails';
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -18,6 +19,10 @@ export default function AdminPage() {
   const [data, setData] = useState<CasesListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingPublicationCount, setPendingPublicationCount] = useState(0);
+  const [pendingReports, setPendingReports] = useState<Report[]>([]);
+  const [publishingReportId, setPublishingReportId] = useState<string | null>(null);
+  const [pendingReportForPublish, setPendingReportForPublish] = useState<Report | null>(null);
+  const [pendingPatientInfoForPublish, setPendingPatientInfoForPublish] = useState<PatientInfo | null>(null);
   const [diseaseType, setDiseaseType] = useState<string>('ALL');
   const [status, setStatus] = useState<string>('ALL');
   const [from, setFrom] = useState<string>('');
@@ -29,6 +34,7 @@ export default function AdminPage() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
+  const [modalInitialData, setModalInitialData] = useState<Partial<Case> | null>(null);
 
   // Confirmation dialog
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; caseId: string | null }>({
@@ -73,6 +79,18 @@ export default function AdminPage() {
       .then((r) => (r.ok ? r.json() : { total: 0 }))
       .then((pendingData) => setPendingPublicationCount(Number(pendingData?.total || 0)))
       .catch(() => setPendingPublicationCount(0));
+
+    fetch(`${API}/reports?status=pending&page=1&limit=8`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((pendingData) => {
+        const rows = Array.isArray(pendingData?.data)
+          ? pendingData.data
+          : Array.isArray(pendingData)
+            ? pendingData
+            : [];
+        setPendingReports(rows as Report[]);
+      })
+      .catch(() => setPendingReports([]));
   }, [diseaseType, status, from, to, search, page, limit]);
 
   useEffect(() => {
@@ -94,7 +112,95 @@ export default function AdminPage() {
 
   // Handle modal save
   const handleModalSave = () => {
+    if (pendingReportForPublish?.id) {
+      setPublishingReportId(pendingReportForPublish.id);
+      const token = localStorage.getItem('token');
+
+      fetch(`${API}/reports/${pendingReportForPublish.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          status: 'resolved',
+          adminNote: 'Đã công bố thành ca bệnh chính thức từ tab Cases',
+        }),
+      })
+        .catch((err) => {
+          console.error('Mark report as published failed:', err);
+        })
+        .finally(() => {
+          setPublishingReportId(null);
+          setPendingReportForPublish(null);
+          setPendingPatientInfoForPublish(null);
+          loadCases();
+        });
+      return;
+    }
+
     loadCases();
+  };
+
+  const toDateTimeLocal = (value?: string) => {
+    const fallback = new Date();
+    if (!value) {
+      return fallback.toISOString().slice(0, 16);
+    }
+
+    const hasTimezone = value.endsWith('Z') || /([+-]\d{2}:?\d{2})$/.test(value);
+    const normalized = hasTimezone ? value : `${value}Z`;
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) {
+      return fallback.toISOString().slice(0, 16);
+    }
+
+    const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const openPublishModal = (report: Report) => {
+    const coords = report?.location?.coordinates;
+    const lon = Array.isArray(coords) ? Number(coords[0] || 0) : 0;
+    const lat = Array.isArray(coords) ? Number(coords[1] || 0) : 0;
+    const age = report?.patientInfo?.age;
+    const yearOfBirth = report?.patientInfo?.yearOfBirth;
+
+    const inferredAge = Number.isFinite(age)
+      ? Number(age)
+      : Number.isFinite(yearOfBirth)
+        ? new Date().getFullYear() - Number(yearOfBirth)
+        : undefined;
+
+    const statusByClassification: Record<string, string> = {
+      confirmed: 'confirmed',
+      probable: 'probable',
+      suspected: 'suspected',
+    };
+
+    const caseStatus = statusByClassification[report?.officialClassification || ''] || 'suspected';
+
+    setPendingReportForPublish(report);
+  setPendingPatientInfoForPublish(report?.patientInfo || null);
+    setEditingCaseId(null);
+    setModalInitialData({
+      disease_type: report?.diseaseType || '',
+      status: caseStatus,
+      severity: 2,
+      reported_time: toDateTimeLocal(report?.createdAt),
+      lat: lat || 21.0278,
+      lon: lon || 105.8342,
+      patient_name: report?.patientInfo?.fullName || report?.reporterName || '',
+      patient_age: inferredAge,
+      patient_gender: report?.patientInfo?.gender || '',
+      notes: [
+        report?.description,
+        report?.officialConfirmNote ? `Ghi chú duyệt: ${report.officialConfirmNote}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    } as Partial<Case>);
+    setModalOpen(true);
   };
 
   // Reset filters
@@ -119,6 +225,8 @@ export default function AdminPage() {
           </div>
           <button
             onClick={() => {
+              setModalInitialData(null);
+              setPendingReportForPublish(null);
               setEditingCaseId(null);
               setModalOpen(true);
             }}
@@ -135,6 +243,34 @@ export default function AdminPage() {
               <div className="text-sm mt-1">
                 Hiện có <span className="font-bold">{pendingPublicationCount}</span> báo cáo ca bệnh đã duyệt đang chờ công bố vào danh sách ca bệnh/vùng dịch chính thức.
               </div>
+              {pendingReports.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {pendingReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="flex items-center justify-between rounded-lg border border-amber-200 bg-white px-3 py-2"
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">
+                          {report.diseaseType || 'Ca bệnh'}
+                        </div>
+                        <div className="text-xs text-slate-500 line-clamp-1">
+                          {report.description || 'Không có mô tả'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openPublishModal(report)}
+                        disabled={publishingReportId === report.id}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        {publishingReportId === report.id
+                          ? 'Đang công bố...'
+                          : 'Kiểm tra & công bố'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -241,7 +377,11 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.data.map((c) => (
+                    {data.data.map((c) => {
+                      const parsedPatientDetails = parsePatientDetailsFromNotes(c.notes);
+                      const details = parsedPatientDetails.patientInfo;
+
+                      return (
                       <tr key={c.id} className="border-t border-slate-200 hover:bg-slate-50">
                         <td className="px-4 py-3 text-sm">
                           <span className="font-mono text-xs text-slate-500">#{c.id}</span>
@@ -266,6 +406,13 @@ export default function AdminPage() {
                               <div className="text-xs text-slate-500">
                                 {[c.patient_age && `${c.patient_age} tuổi`, c.patient_gender].filter(Boolean).join(', ')}
                               </div>
+                              {details && (
+                                <div className="mt-1 text-[11px] text-slate-500 space-y-0.5">
+                                  {details.idNumber && <div>CCCD/CMND: {details.idNumber}</div>}
+                                  {details.phone && <div>SĐT: {details.phone}</div>}
+                                  {details.occupation && <div>Nghề nghiệp: {details.occupation}</div>}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <span className="text-slate-400">-</span>
@@ -290,7 +437,8 @@ export default function AdminPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -329,10 +477,15 @@ export default function AdminPage() {
         <CaseModal
           isOpen={modalOpen}
           caseId={editingCaseId}
+          initialData={modalInitialData}
           onClose={() => {
             setModalOpen(false);
             setEditingCaseId(null);
+            setModalInitialData(null);
+            setPendingReportForPublish(null);
+            setPendingPatientInfoForPublish(null);
           }}
+          initialPatientInfo={pendingPatientInfoForPublish}
           onSave={handleModalSave}
         />
       )}
