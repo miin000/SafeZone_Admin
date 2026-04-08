@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import type { Case } from '@/types';
 import { STATUS_COLORS, SEVERITY_LEVELS } from '@/types';
+import { parsePatientDetailsFromNotes } from '@/constants/patientDetails';
 
 interface CaseDetailPanelProps {
   caseData: Case | null;
@@ -15,6 +15,12 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
 
   const severityInfo = SEVERITY_LEVELS.find(s => s.value === caseData.severity) || SEVERITY_LEVELS[0];
   const statusColor = STATUS_COLORS[caseData.status] || STATUS_COLORS.unknown;
+  const parsedNotes = parsePatientDetailsFromNotes(caseData.notes);
+  const noteText = parsedNotes.baseNotes?.trim() || '';
+  const detailInfo = parsedNotes.patientInfo;
+  const displayPatientName = caseData.patient_name || detailInfo?.fullName;
+  const displayPatientAge = caseData.patient_age ?? detailInfo?.age;
+  const displayPatientGender = caseData.patient_gender || detailInfo?.gender;
 
   return (
     <div style={panelStyle}>
@@ -90,35 +96,35 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
           </div>
         </div>
 
-        {(caseData.patient_name || caseData.patient_age || caseData.patient_gender) && (
+        {(displayPatientName || displayPatientAge || displayPatientGender) && (
           <div style={sectionStyle}>
             <div style={sectionTitleStyle}>Bệnh nhân</div>
-            {caseData.patient_name && (
+            {displayPatientName && (
               <div style={rowStyle}>
                 <span style={labelStyle}>Tên</span>
-                <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.patient_name}</span>
+                <span style={{ fontSize: 11, color: '#ffffff' }}>{displayPatientName}</span>
               </div>
             )}
-            {caseData.patient_age && (
+            {typeof displayPatientAge === 'number' && (
               <div style={rowStyle}>
                 <span style={labelStyle}>Tuổi</span>
-                <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.patient_age}</span>
+                <span style={{ fontSize: 11, color: '#ffffff' }}>{displayPatientAge}</span>
               </div>
             )}
-            {caseData.patient_gender && (
+            {displayPatientGender && (
               <div style={rowStyle}>
                 <span style={labelStyle}>Giới tính</span>
-                <span style={{ fontSize: 11, color: '#ffffff' }}>{caseData.patient_gender}</span>
+                <span style={{ fontSize: 11, color: '#ffffff' }}>{displayPatientGender}</span>
               </div>
             )}
           </div>
         )}
 
-        {caseData.notes && (
+        {noteText && (
           <div style={{ ...sectionStyle, borderBottom: 'none' }}>
             <div style={sectionTitleStyle}>Ghi chú</div>
             <p style={{ margin: 0, color: 'rgba(255, 255, 255, 0.9)', fontSize: 11, lineHeight: 1.4 }}>
-              {caseData.notes}
+              {noteText}
             </p>
           </div>
         )}
@@ -126,7 +132,7 @@ export default function CaseDetailPanel({ caseData, onClose, onEdit }: CaseDetai
 
       <div style={footerStyle}>
         <button onClick={() => onEdit(caseData)} style={editButtonStyle}>
-          ✏️ Chỉnh sửa
+          Chỉnh sửa
         </button>
       </div>
     </div>

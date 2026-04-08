@@ -13,6 +13,7 @@ import {
   getBilingualStatusLabel,
   getBilingualSeverityLabel,
 } from '@/types';
+import { parsePatientDetailsFromNotes } from '@/constants/patientDetails';
 
 interface CasesLayerProps {
   cases: FeatureCollection;
@@ -51,6 +52,16 @@ export default function CasesLayer({
 
   // Create popup content for a case
   const createPopupContent = useCallback((p: any) => {
+    const parsedNotes = parsePatientDetailsFromNotes(p.notes);
+    const noteText = parsedNotes.baseNotes?.trim() || '';
+    const escapedNoteText = noteText
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/\n/g, '<br />');
+
     return `
       <div style="min-width: 260px; font-family: system-ui, sans-serif;">
         <div style="font-weight: 800; font-size: 15px; margin-bottom: 8px; color: ${getDiseaseColor(p.disease_type)}">
@@ -79,10 +90,10 @@ export default function CasesLayer({
           </div>
         </div>
         
-        ${p.notes ? `
+        ${noteText ? `
           <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.15);">
             <div style="opacity: 0.7; font-size: 11px; margin-bottom: 4px">Ghi chú / Notes:</div>
-            <div style="font-size: 12px; opacity: 0.9">${p.notes}</div>
+            <div style="font-size: 12px; opacity: 0.9">${escapedNoteText}</div>
           </div>
         ` : ''}
         

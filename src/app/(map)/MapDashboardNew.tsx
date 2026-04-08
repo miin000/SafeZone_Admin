@@ -304,7 +304,6 @@ export default function MapDashboard() {
           <div style={{ flex: 1, position: 'relative' }}>
             {!cases ? (
               <div style={loadingOverlayStyle}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>🗺️</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Đang tải dữ liệu...</div>
                 <div style={{ opacity: 0.6, marginTop: 8, fontSize: 14, color: '#64748b' }}>
                   Loading map data...
@@ -334,7 +333,7 @@ export default function MapDashboard() {
                 style={fabStyle}
                 title="Thêm ca bệnh"
               >
-                ➕ Thêm ca
+                Thêm ca
               </button>
               <button
                 onClick={() => {
@@ -344,7 +343,7 @@ export default function MapDashboard() {
                 style={{ ...fabStyle, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
                 title="Tạo vùng dịch"
               >
-                🚨 Vùng dịch
+                Vùng dịch
               </button>
             </div>
 
@@ -373,7 +372,7 @@ export default function MapDashboard() {
                       color: activeTab === 'filters' ? '#fff' : '#64748b',
                     }}
                   >
-                    🔍 Bộ lọc
+                    Bộ lọc
                   </button>
                   <button
                     onClick={() => setActiveTab('stats')}
@@ -383,7 +382,7 @@ export default function MapDashboard() {
                       color: activeTab === 'stats' ? '#fff' : '#64748b',
                     }}
                   >
-                    📊 Thống kê
+                    Thống kê
                   </button>
                 </div>
                 <button
@@ -504,14 +503,12 @@ function FiltersPanel({
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
           <div style={quickStatStyle}>
-            <span style={{ fontSize: 20 }}>🏥</span>
             <div>
               <div style={quickStatValueStyle}>{stats.summary?.total_cases ?? 0}</div>
               <div style={quickStatLabelStyle}>Tổng ca</div>
             </div>
           </div>
           <div style={{ ...quickStatStyle, background: 'linear-gradient(135deg, #fef2f2, #fee2e2)' }}>
-            <span style={{ fontSize: 20 }}>🚨</span>
             <div>
               <div style={{ ...quickStatValueStyle, color: '#dc2626' }}>
                 {(stats.byStatus || [])
@@ -522,7 +519,6 @@ function FiltersPanel({
             </div>
           </div>
           <div style={{ ...quickStatStyle, background: 'linear-gradient(135deg, #fffbeb, #fef3c7)' }}>
-            <span style={{ fontSize: 20 }}>⏳</span>
             <div>
               <div style={{ ...quickStatValueStyle, color: '#b45309' }}>{pendingPublicationCount}</div>
               <div style={quickStatLabelStyle}>Chờ công bố</div>
@@ -539,10 +535,10 @@ function FiltersPanel({
           onChange={(e) => setMode(e.target.value as DisplayMode)} 
           style={selectStyle}
         >
-          <option value="points_disease">🦠 Theo loại bệnh</option>
-          <option value="points_status">📊 Theo trạng thái</option>
-          <option value="heatmap">🔥 Bản đồ nhiệt</option>
-          <option value="clusters_dbscan">🧩 Cụm DBSCAN</option>
+          <option value="points_disease">Theo loại bệnh</option>
+          <option value="points_status">Theo trạng thái</option>
+          <option value="heatmap">Bản đồ nhiệt</option>
+          <option value="clusters_dbscan">Cụm DBSCAN</option>
         </select>
       </div>
 
@@ -689,7 +685,7 @@ function FiltersPanel({
             onChange={(e) => setShowTimeline(e.target.checked)}
             style={{ accentColor: '#10b981' }}
           />
-          <span>🎬 Hiển thị timeline</span>
+          <span>Hiển thị timeline</span>
         </label>
       </div>
 
@@ -697,7 +693,6 @@ function FiltersPanel({
       {zones && zones.length > 0 && (
         <div style={zoneSummaryStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 18 }}>🚨</span>
             <span style={{ fontWeight: 600, color: '#1e293b' }}>Vùng dịch</span>
           </div>
           <div style={{ display: 'flex', gap: 16 }}>
@@ -719,7 +714,7 @@ function FiltersPanel({
 
       {/* Reset Button */}
       <button onClick={handleResetFilters} style={resetButtonStyle}>
-        🔄 Đặt lại bộ lọc
+        Đặt lại bộ lọc
       </button>
     </div>
   );
@@ -732,7 +727,6 @@ function StatsPanel({ stats }: { stats: Stats | null }) {
   if (!stats) {
     return (
       <div style={{ textAlign: 'center', padding: 40 }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
         <div style={{ color: '#64748b' }}>Đang tải thống kê...</div>
       </div>
     );
@@ -782,7 +776,7 @@ function StatsPanel({ stats }: { stats: Stats | null }) {
       {/* Top Diseases */}
       {byDisease && byDisease.length > 0 && (
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>🦠 Loại bệnh</div>
+          <div style={sectionTitleStyle}>Loại bệnh</div>
           {byDisease.slice(0, 4).map((d: any) => (
             <div key={d.disease_type} style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
@@ -804,7 +798,7 @@ function StatsPanel({ stats }: { stats: Stats | null }) {
       {/* Top Regions */}
       {topRegions && topRegions.length > 0 && (
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>🏛️ Top vùng</div>
+          <div style={sectionTitleStyle}>Top vùng</div>
           {topRegions.slice(0, 5).map((r: any, idx: number) => (
             <div key={r.id} style={regionItemStyle}>
               <div style={{

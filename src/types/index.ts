@@ -533,7 +533,7 @@ export interface GridDensityData {
 }
 
 export interface DBSCANCluster {
-  id: number;
+  id: number | string;
   count: number;
   center: {
     lat: number;

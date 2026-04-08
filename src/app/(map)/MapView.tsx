@@ -299,12 +299,12 @@ function Legend({
 
   const title =
     mode === 'points_disease'
-      ? '🦠 Loại bệnh / Disease Type'
+      ? 'Loại bệnh / Disease Type'
       : mode === 'points_status'
-      ? '📊 Trạng thái / Status'
+      ? 'Trạng thái / Status'
       : mode === 'clusters_dbscan'
-      ? '🧩 Cụm DBSCAN / DBSCAN Clusters'
-      : '🔥 Bản đồ nhiệt / Heatmap';
+      ? 'Cụm DBSCAN / DBSCAN Clusters'
+      : 'Bản đồ nhiệt / Heatmap';
 
   return (
     <div
@@ -338,7 +338,7 @@ function Legend({
           }}
           title="Mở chú thích / Show legend"
         >
-          📋
+          M
         </button>
       ) : (
         <>

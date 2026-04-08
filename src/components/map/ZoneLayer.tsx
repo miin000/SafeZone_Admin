@@ -32,6 +32,9 @@ interface Zone {
   caseCount: number;
   description?: string;
   isActive: boolean;
+  lifecycleStatus?: 'proposed' | 'pending_approval' | 'approved' | 'rejected' | 'closed';
+  source?: 'manual' | 'dbscan';
+  proposalMetadata?: Record<string, unknown> | null;
   startDate?: string;
   endDate?: string;
 }
@@ -82,6 +85,11 @@ export default function ZoneLayer({
   const createTooltipContent = useCallback((zone: Zone) => {
     const color = RISK_COLORS[zone.riskLevel] || RISK_COLORS.medium;
     const riskLabel = RISK_LABELS[zone.riskLevel] || RISK_LABELS.medium;
+    const clusterCaseCount = Number(
+      (zone.proposalMetadata as any)?.clusterCaseCount ?? NaN,
+    );
+    const hasDbscanClusterCount =
+      zone.source === 'dbscan' && Number.isFinite(clusterCaseCount);
     
     return `
       <div style="min-width: 220px; font-family: system-ui; padding: 4px;">
@@ -107,9 +115,15 @@ export default function ZoneLayer({
             <span style="font-weight: 600;">${zone.radiusKm} km</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span style="opacity: 0.7;">Số ca:</span>
+            <span style="opacity: 0.7;">${hasDbscanClusterCount ? 'Số ca vùng hiện tại:' : 'Số ca:'}</span>
             <span style="font-weight: 700; color: ${color};">${zone.caseCount}</span>
           </div>
+          ${hasDbscanClusterCount ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+              <span style="opacity: 0.7;">Ca cụm DBSCAN:</span>
+              <span style="font-weight: 700; color: ${color};">${clusterCaseCount}</span>
+            </div>
+          ` : ''}
           ${zone.startDate ? `
             <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
               <span style="opacity: 0.7;">Từ ngày:</span>
