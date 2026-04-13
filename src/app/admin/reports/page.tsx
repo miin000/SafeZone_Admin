@@ -387,12 +387,12 @@ export default function ReportsPage() {
     setWorkflowAction(null);
   };
 
-  const handleOfficialConfirm = async (reportId: string, classification: OfficialClassification, note?: string) => {
+  const handleOfficialConfirm = async (reportId: string, classification: OfficialClassification, note?: string, createCase?: boolean) => {
     try {
       const res = await fetch(`${API}/reports/${reportId}/official-confirm`, {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({ classification, note }),
+        body: JSON.stringify({ classification, note, createCase: Boolean(createCase) }),
       });
       if (res.ok) {
         await loadReports();
@@ -841,7 +841,7 @@ export default function ReportsPage() {
           }}
           onPreliminaryReview={(result, note) => handlePreliminaryReview(selectedReport.id, result, note)}
           onFieldVerify={(result, note) => handleFieldVerify(selectedReport.id, result, note)}
-          onOfficialConfirm={(classification, note) => handleOfficialConfirm(selectedReport.id, classification, note)}
+          onOfficialConfirm={(classification, note, createCase) => handleOfficialConfirm(selectedReport.id, classification, note, createCase)}
           onCloseReport={(action, note) => handleCloseReport(selectedReport.id, action, note)}
         />
       )}
@@ -868,7 +868,7 @@ function ReviewModal({
   onClose: () => void; 
   onPreliminaryReview: (result: PreliminaryResult, note?: string) => void;
   onFieldVerify: (result: FieldVerificationResult, note?: string) => void;
-  onOfficialConfirm: (classification: OfficialClassification, note?: string) => void;
+  onOfficialConfirm: (classification: OfficialClassification, note?: string, createCase?: boolean) => void;
   onCloseReport: (action: ClosureAction, note?: string) => void;
 }) {
   const [activeAction, setActiveAction] = useState<string | null>(initialAction);
@@ -898,6 +898,37 @@ function ReviewModal({
   const priorityConfig = priorityOptions[report.priority || 'medium'] || { color: '#94a3b8', label: 'N/A', icon: '⚪' };
   const parsedContactHistory = parseContactHistory(report.patientInfo?.contactHistory);
 
+  const renderImageGrid = (urls?: string[]) => {
+    const safeUrls = (urls || []).filter((u) => typeof u === 'string' && u.trim().length > 0);
+    if (safeUrls.length === 0) {
+      return <div className="text-sm text-slate-500">Không có</div>;
+    }
+
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {safeUrls.map((url, idx) => (
+          <a
+            key={`${url}-${idx}`}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="group block"
+            title="Mở ảnh ở tab mới"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt={`Evidence ${idx + 1}`}
+              className="h-24 w-full rounded-lg border border-slate-200 object-cover bg-slate-50 group-hover:opacity-90"
+              loading="lazy"
+            />
+            <div className="mt-1 text-[11px] text-slate-500 truncate">{url}</div>
+          </a>
+        ))}
+      </div>
+    );
+  };
+
   const getTimeAgo = (dateStr: string) => getTimeAgoLabel(dateStr);
 
   const handleSubmit = () => {
@@ -909,7 +940,7 @@ function ReviewModal({
         onFieldVerify(fieldResult, note || undefined);
         break;
       case 'official-confirm':
-        onOfficialConfirm(classification, note || undefined);
+        onOfficialConfirm(classification, note || undefined, report.isDetailedReport);
         break;
       case 'close':
         onCloseReport(closureAction, note || undefined);
@@ -1027,6 +1058,30 @@ function ReviewModal({
               </div>
             )}
           </div>
+
+          {/* Evidence Images */}
+          {(report.imageUrls?.length || report.testResultImageUrls?.length || report.medicalCertImageUrls?.length) ? (
+            <div className="card p-4 mb-4 border-2 border-slate-200 bg-white">
+              <h3 className="font-semibold text-slate-800 mb-3">🖼️ Minh chứng</h3>
+
+              <div className="space-y-5">
+                <div>
+                  <div className="text-xs font-semibold text-slate-600 mb-2 uppercase">Ảnh đính kèm (Báo cáo nhanh)</div>
+                  {renderImageGrid(report.imageUrls)}
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold text-slate-600 mb-2 uppercase">Ảnh kết quả xét nghiệm</div>
+                  {renderImageGrid(report.testResultImageUrls)}
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold text-slate-600 mb-2 uppercase">Ảnh giấy tờ y tế</div>
+                  {renderImageGrid(report.medicalCertImageUrls)}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {/* Epidemiological Info */}
           {(report.hasContactWithPatient || report.hasVisitedEpidemicArea || report.hasSimilarCasesNearby) && (
