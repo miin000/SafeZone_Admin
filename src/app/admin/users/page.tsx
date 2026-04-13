@@ -16,21 +16,27 @@ interface User {
   email: string;
   name: string;
   phone: string;
-  role: 'user' | 'health_authority' | 'admin';
+  role: string;
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
   lastLoginAt?: string;
 }
 
-type StaffRole = 'health_authority' | 'admin';
+type EditableRole = 'user' | 'health_authority' | 'admin';
+
+const normalizeRole = (role?: string): EditableRole => {
+  if (role === 'admin') return 'admin';
+  if (role === 'health_authority' || role === 'health_worker') return 'health_authority';
+  return 'user';
+};
 
 interface UserFormData {
   email: string;
   password: string;
   name: string;
   phone: string;
-  role: StaffRole;
+  role: EditableRole;
   isActive: boolean;
 }
 
@@ -137,6 +143,15 @@ export default function UsersPage() {
         const { password, ...rest } = formData;
         payload = rest;
       }
+      // Keep regular user role read-only in this screen and avoid sending invalid role update.
+      if (editingUser && normalizeRole(editingUser.role) === 'user') {
+        const { role, ...rest } = payload;
+        payload = rest;
+      }
+      if (!editingUser && formData.role === 'user') {
+        alert('Trang này chỉ tạo tài khoản Admin hoặc Cơ quan Y tế');
+        return;
+      }
 
       const response = await fetch(url, {
         method,
@@ -223,23 +238,20 @@ export default function UsersPage() {
   // Open modal for edit
   const handleEdit = (user: User) => {
     setEditingUser(user);
-    // Only admin and health_authority users are listed, so role is safe to cast
-    const staffRole: StaffRole = (user.role === 'admin' || user.role === 'health_authority') 
-      ? user.role as StaffRole 
-      : 'health_authority';
+    const normalizedRole = normalizeRole(user.role);
     setFormData({
       email: user.email,
       password: '',
       name: user.name,
       phone: user.phone,
-      role: staffRole,
+      role: normalizedRole,
       isActive: user.isActive,
     });
     setModalOpen(true);
   };
 
   const getRoleLabel = (role: string) => {
-    switch (role) {
+    switch (normalizeRole(role)) {
       case 'admin': return 'Admin';
       case 'health_authority': return 'Cơ quan Y tế';
       case 'user': return 'Người dùng';
@@ -248,13 +260,15 @@ export default function UsersPage() {
   };
 
   const getRoleBadgeColor = (role: string) => {
-    switch (role) {
+    switch (normalizeRole(role)) {
       case 'admin': return 'bg-purple-100 text-purple-800';
       case 'health_authority': return 'bg-blue-100 text-blue-800';
       case 'user': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const isEditingRegularUser = editingUser ? normalizeRole(editingUser.role) === 'user' : false;
 
   return (
     <div className="flex">
@@ -267,30 +281,22 @@ export default function UsersPage() {
         <Header />
 
         {/* Page Title */}
-        <div className="bg-white border-b border-slate-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-slate-800">👥 Quản lý người dùng</h1>
-          <p className="text-sm text-slate-500">Quản lý tài khoản và quyền truy cập người dùng</p>
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">👥 Quản lý người dùng</h1>
+            <p className="text-sm text-slate-500 mt-1">Quản lý tài khoản Admin và Cơ quan y tế và người dùng</p>
+          </div>
+          <button
+            onClick={handleCreate}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md flex items-center gap-2 whitespace-nowrap"
+          >
+            <span>➕</span>
+            <span>Tạo tài khoản</span>
+          </button>
         </div>
 
         {/* Page Content */}
         <div className="p-6 bg-slate-50 min-h-[calc(100vh-80px)]">
-          {/* Header */}
-          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">👥 Quản lý tài khoản staff</h1>
-              <p className="text-sm text-slate-500 mt-1">Quản lý tài khoản Admin và Cơ quan y tế</p>
-            </div>
-            <button
-              onClick={handleCreate}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-md flex items-center gap-2"
-            >
-              <span>➕</span>
-              <span>Tạo tài khoản</span>
-            </button>
-          </div>
-        </header>
-
           {/* Filters */}
           <div className="bg-white border-b border-slate-200 px-8 py-4">
           <div className="flex gap-4 items-center">
@@ -460,13 +466,20 @@ export default function UsersPage() {
                 </label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as StaffRole })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as EditableRole })}
+                  disabled={isEditingRegularUser}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   required
                 >
+                  {isEditingRegularUser && <option value="user">Người dùng</option>}
                   <option value="health_authority">Cơ quan Y tế</option>
                   <option value="admin">Admin</option>
                 </select>
+                {isEditingRegularUser && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Tài khoản Người dùng chỉ xem/chỉnh sửa thông tin cơ bản ở màn này.
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center">

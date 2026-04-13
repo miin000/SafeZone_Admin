@@ -189,19 +189,47 @@ export async function createCase(data: CaseFormData): Promise<Case> {
 
 export async function updateCase(id: string, data: Partial<CaseFormData>): Promise<Case> {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${API}/gis/cases/${id}`, {
-    method: 'PUT',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => 'Unknown error');
-    throw new Error(`Failed to update case: ${res.status} ${errorText}`);
+
+  const cleanPayload = Object.fromEntries(
+    Object.entries(data).filter(([_, value]) => {
+      if (value === undefined || value === null) return false;
+      if (typeof value === 'number' && Number.isNaN(value)) return false;
+      if (typeof value === 'string' && value.trim() === '') return false;
+      return true;
+    }),
+  );
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  return res.json();
+
+  const methods: Array<'PUT' | 'PATCH'> = ['PUT', 'PATCH'];
+  let lastError = 'Unknown error';
+
+  for (const method of methods) {
+    const res = await fetch(`${API}/gis/cases/${id}`, {
+      method,
+      headers,
+      body: JSON.stringify(cleanPayload),
+    });
+
+    if (res.ok) {
+      return res.json();
+    }
+
+    const errorText = await res.text().catch(() => 'Unknown error');
+    lastError = `${res.status} ${errorText}`;
+
+    // Fallback to next method if endpoint doesn't support current method.
+    if (![404, 405].includes(res.status)) {
+      break;
+    }
+  }
+
+  throw new Error(`Failed to update case: ${lastError}`);
 }
 
 export async function deleteCase(id: string): Promise<void> {

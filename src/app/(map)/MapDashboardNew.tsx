@@ -77,6 +77,7 @@ export default function MapDashboard() {
   const [diseaseOptions, setDiseaseOptions] = useState<string[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [pendingPublicationCount, setPendingPublicationCount] = useState(0);
+  const [timelineBounds, setTimelineBounds] = useState<{ minDate: string; maxDate: string } | null>(null);
 
   // DBSCAN tuning
   const [dbscanEpsKm, setDbscanEpsKm] = useState<number>(3);
@@ -115,6 +116,20 @@ export default function MapDashboard() {
       .then((data) => setPendingPublicationCount(Number(data?.total || 0)))
       .catch(() => setPendingPublicationCount(0));
   }, [cases, zones]);
+
+  // Keep timeline range stable from unfiltered data so timeline does not disappear after narrow filters.
+  useEffect(() => {
+    fetch(`${API}/gis/stats`)
+      .then(r => r.json())
+      .then((s: Stats) => {
+        const min = s?.summary?.min_time?.split('T')[0];
+        const max = s?.summary?.max_time?.split('T')[0];
+        if (min && max) {
+          setTimelineBounds({ minDate: min, maxDate: max });
+        }
+      })
+      .catch(err => console.error('Error loading timeline bounds:', err));
+  }, []);
 
   // Build URL params
   const buildParams = useCallback(() => {
@@ -277,12 +292,13 @@ export default function MapDashboard() {
 
   // Timeline date change handler
   const handleTimelineDateChange = useCallback((date: string) => {
+    setFrom('');
     setTo(date);
     setQuickFilter('custom');
   }, []);
 
-  const timelineMinDate = stats?.summary?.min_time?.split('T')[0] || '2024-01-01';
-  const timelineMaxDate = stats?.summary?.max_time?.split('T')[0] || new Date().toISOString().split('T')[0];
+  const timelineMinDate = timelineBounds?.minDate || stats?.summary?.min_time?.split('T')[0] || '2024-01-01';
+  const timelineMaxDate = timelineBounds?.maxDate || stats?.summary?.max_time?.split('T')[0] || new Date().toISOString().split('T')[0];
 
   // Calculate active cases
   const activeCases = useMemo(() => {
@@ -301,54 +317,56 @@ export default function MapDashboard() {
         {/* Map & side panel container */}
         <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 'calc(100vh - 120px)' }}>
           {/* Map Area */}
-          <div style={{ flex: 1, position: 'relative' }}>
-            {!cases ? (
-              <div style={loadingOverlayStyle}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Đang tải dữ liệu...</div>
-                <div style={{ opacity: 0.6, marginTop: 8, fontSize: 14, color: '#64748b' }}>
-                  Loading map data...
+          <div style={{ flex: 1, position: 'relative', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              {!cases ? (
+                <div style={loadingOverlayStyle}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Đang tải dữ liệu...</div>
+                  <div style={{ opacity: 0.6, marginTop: 8, fontSize: 14, color: '#64748b' }}>
+                    Loading map data...
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <MapView
-                mode={mode}
-                regions={regions}
-                cases={cases}
-                clusters={clusters}
-                zones={zones}
-                onCaseClick={handleCaseClick}
-                onZoneClick={handleZoneClick}
-                onToggleZoneActive={handleToggleZoneActive}
-                onModeChange={handleModeChange}
-              />
-            )}
+              ) : (
+                <MapView
+                  mode={mode}
+                  regions={regions}
+                  cases={cases}
+                  clusters={clusters}
+                  zones={zones}
+                  onCaseClick={handleCaseClick}
+                  onZoneClick={handleZoneClick}
+                  onToggleZoneActive={handleToggleZoneActive}
+                  onModeChange={handleModeChange}
+                />
+              )}
 
-            {/* Floating Action Buttons */}
-            <div style={floatingActionsStyle}>
-              <button
-                onClick={() => {
-                  setEditingCaseId(null);
-                  setModalOpen(true);
-                }}
-                style={fabStyle}
-                title="Thêm ca bệnh"
-              >
-                Thêm ca
-              </button>
-              <button
-                onClick={() => {
-                  setEditingZoneId(null);
-                  setZoneModalOpen(true);
-                }}
-                style={{ ...fabStyle, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
-                title="Tạo vùng dịch"
-              >
-                Vùng dịch
-              </button>
+              {/* Floating Action Buttons */}
+              <div style={floatingActionsStyle}>
+                <button
+                  onClick={() => {
+                    setEditingCaseId(null);
+                    setModalOpen(true);
+                  }}
+                  style={fabStyle}
+                  title="Thêm ca bệnh"
+                >
+                  Thêm ca
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingZoneId(null);
+                    setZoneModalOpen(true);
+                  }}
+                  style={{ ...fabStyle, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                  title="Tạo vùng dịch"
+                >
+                  Vùng dịch
+                </button>
+              </div>
             </div>
 
             {/* Timeline Control */}
-            {showTimeline && stats?.summary?.min_time && (
+            {showTimeline && timelineMinDate && timelineMaxDate && (
               <TimelineControl
                 minDate={timelineMinDate}
                 maxDate={timelineMaxDate}

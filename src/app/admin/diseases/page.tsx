@@ -792,8 +792,8 @@ export default function DiseasesPage() {
 
       {/* Outbreak Modal */}
       {showOutbreakModal && outbreakDisease && (
-        <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[92vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">🗓️ Quản lý đợt dịch</h2>
@@ -807,10 +807,10 @@ export default function DiseasesPage() {
               </button>
             </div>
 
-            <div className="p-6 bg-slate-50 space-y-6">
+            <div className="p-4 sm:p-6 bg-slate-50 space-y-6 overflow-y-auto max-h-[calc(92vh-74px)]">
               {/* Create */}
               <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                   <div>
                     <h3 className="font-semibold text-slate-800">{outbreakEditingId ? 'Chỉnh sửa đợt dịch' : 'Tạo đợt dịch'}</h3>
                     <p className="text-sm text-slate-500">{outbreakEditingId ? 'Cập nhật thông tin đợt dịch' : 'Mỗi bệnh chỉ có 1 đợt active tại một thời điểm'}</p>
@@ -831,7 +831,7 @@ export default function DiseasesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase">Ngày bắt đầu</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase min-h-[32px]">Ngày bắt đầu</label>
                     <input
                       type="date"
                       value={outbreakCreateStartDate}
@@ -840,7 +840,7 @@ export default function DiseasesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase">Ngày kết thúc (tuỳ chọn)</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase min-h-[32px]">Ngày kết thúc (tuỳ chọn)</label>
                     <input
                       type="date"
                       value={outbreakCreateEndDate}
@@ -902,14 +902,14 @@ export default function DiseasesPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
+                    <table className="w-full min-w-[780px] border-collapse table-fixed">
                       <thead>
                         <tr className="bg-slate-100">
                           <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Tên đợt</th>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Trạng thái</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Bắt đầu</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Kết thúc</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase w-56">Thao tác</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-44">Bắt đầu</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-44">Kết thúc</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase w-64">Thao tác</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -931,8 +931,8 @@ export default function DiseasesPage() {
                                 {o.status === 'active' ? 'Hoạt động' : 'Đã đóng'}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-600">{formatDateTime(o.startDate)}</td>
-                            <td className="px-4 py-3 text-sm text-slate-600">{formatDateTime(o.endDate)}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap tabular-nums align-top">{formatDateTime(o.startDate)}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap tabular-nums align-top">{formatDateTime(o.endDate)}</td>
                             <td className="px-4 py-3">
                               <div className="flex gap-2 justify-center flex-wrap">
                                 {o.status === 'active' ? (

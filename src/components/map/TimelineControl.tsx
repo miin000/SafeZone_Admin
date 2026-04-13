@@ -28,6 +28,7 @@ export default function TimelineControl({
   const [speed, setSpeed] = useState(1);
   const [direction, setDirection] = useState<1 | -1>(1);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentDateRef = useRef(currentDate);
 
   const minTime = parseDateToUtcMs(minDate);
   const maxTime = parseDateToUtcMs(maxDate);
@@ -38,57 +39,47 @@ export default function TimelineControl({
   const position = totalDays > 0 
     ? ((currentTime - minTime) / (maxTime - minTime)) * 100 
     : 100;
+  const clampedPosition = Math.max(0, Math.min(100, position));
+  const thumbLeft = `clamp(8px, ${clampedPosition}%, calc(100% - 8px))`;
 
   // Generate tick marks for months
   const ticks = generateMonthTicks(minDate, maxDate);
+
+  const commitDate = useCallback((newDate: string) => {
+    currentDateRef.current = newDate;
+    setCurrentDate(newDate);
+    onDateChange(newDate);
+    if (onRangeChange) {
+      onRangeChange(minDate, newDate);
+    }
+  }, [minDate, onDateChange, onRangeChange]);
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const percent = Number(e.target.value);
     const newTime = minTime + (percent / 100) * (maxTime - minTime);
     const newDate = utcMsToDateString(newTime);
-    setCurrentDate(newDate);
-    onDateChange(newDate);
-    
-    if (onRangeChange) {
-      onRangeChange(minDate, newDate);
-    }
+    commitDate(newDate);
   };
 
   const stepForward = useCallback(() => {
-    setCurrentDate(prev => {
-      const nextTime = parseDateToUtcMs(prev) + 24 * 60 * 60 * 1000;
-      
-      if (nextTime > maxTime) {
-        setPlaying(false);
-        return maxDate;
-      }
-      
-      const newDate = utcMsToDateString(nextTime);
-      onDateChange(newDate);
-      if (onRangeChange) {
-        onRangeChange(minDate, newDate);
-      }
-      return newDate;
-    });
-  }, [maxTime, maxDate, minDate, onDateChange, onRangeChange]);
+    const nextTime = parseDateToUtcMs(currentDateRef.current) + 24 * 60 * 60 * 1000;
+    const reachedEnd = nextTime >= maxTime;
+    const nextDate = reachedEnd ? maxDate : utcMsToDateString(nextTime);
+    if (reachedEnd) {
+      setPlaying(false);
+    }
+    commitDate(nextDate);
+  }, [maxTime, maxDate, commitDate]);
 
   const stepBackward = useCallback(() => {
-    setCurrentDate(prev => {
-      const nextTime = parseDateToUtcMs(prev) - 24 * 60 * 60 * 1000;
-      
-      if (nextTime < minTime) {
-        setPlaying(false);
-        return minDate;
-      }
-      
-      const newDate = utcMsToDateString(nextTime);
-      onDateChange(newDate);
-      if (onRangeChange) {
-        onRangeChange(minDate, newDate);
-      }
-      return newDate;
-    });
-  }, [minTime, minDate, onDateChange, onRangeChange]);
+    const nextTime = parseDateToUtcMs(currentDateRef.current) - 24 * 60 * 60 * 1000;
+    const reachedStart = nextTime <= minTime;
+    const nextDate = reachedStart ? minDate : utcMsToDateString(nextTime);
+    if (reachedStart) {
+      setPlaying(false);
+    }
+    commitDate(nextDate);
+  }, [minTime, minDate, commitDate]);
 
   const togglePlay = () => {
     const newPlaying = !playing;
@@ -98,20 +89,12 @@ export default function TimelineControl({
 
   const reset = () => {
     setPlaying(false);
-    setCurrentDate(minDate);
-    onDateChange(minDate);
-    if (onRangeChange) {
-      onRangeChange(minDate, minDate);
-    }
+    commitDate(minDate);
   };
 
   const goToEnd = () => {
     setPlaying(false);
-    setCurrentDate(maxDate);
-    onDateChange(maxDate);
-    if (onRangeChange) {
-      onRangeChange(minDate, maxDate);
-    }
+    commitDate(maxDate);
   };
 
   // Auto-play effect
@@ -146,6 +129,7 @@ export default function TimelineControl({
   // Sync with external selectedDate
   useEffect(() => {
     if (selectedDate) {
+      currentDateRef.current = selectedDate;
       setCurrentDate(selectedDate);
     }
   }, [selectedDate]);
@@ -155,7 +139,10 @@ export default function TimelineControl({
       background: 'rgba(10, 10, 10, 0.95)',
       backdropFilter: 'blur(10px)',
       borderTop: '1px solid #2a2a2a',
-      padding: '12px 20px',
+      padding: '12px 16px',
+      width: '100%',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
     }}>
       {/* Current Date Display */}
       <div style={{ 
@@ -180,7 +167,7 @@ export default function TimelineControl({
       </div>
 
       {/* Slider Track */}
-      <div style={{ position: 'relative', height: 40, marginBottom: 8 }}>
+      <div style={{ position: 'relative', height: 40, marginBottom: 8, overflow: 'hidden' }}>
         {/* Track Background */}
         <div style={{
           position: 'absolute',
@@ -225,6 +212,9 @@ export default function TimelineControl({
                 whiteSpace: 'nowrap',
                 marginTop: 26,
                 textAlign: 'center',
+                maxWidth: 52,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}>
                 {tick.label}
               </div>
@@ -256,7 +246,7 @@ export default function TimelineControl({
         {/* Thumb Indicator */}
         <div style={{
           position: 'absolute',
-          left: `${position}%`,
+          left: thumbLeft,
           top: 12,
           transform: 'translateX(-50%)',
           width: 16,
@@ -275,15 +265,16 @@ export default function TimelineControl({
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
         gap: 12,
       }}>
         {/* Date Range Info */}
-        <div style={{ fontSize: 10, opacity: 0.5 }}>
+        <div style={{ fontSize: 10, opacity: 0.5, flex: '1 1 220px' }}>
           {formatDateVi(minDate)} → {formatDateVi(maxDate)}
         </div>
 
         {/* Playback Controls */}
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', flex: '1 1 220px' }}>
           <button onClick={reset} style={controlButtonStyle} title="Về đầu">
             ⏮
           </button>
@@ -336,7 +327,7 @@ export default function TimelineControl({
         </div>
 
         {/* Speed Control */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flex: '1 1 140px' }}>
           <span style={{ fontSize: 10, opacity: 0.5 }}>Tốc độ:</span>
           {[0.5, 1, 2, 4].map((s) => (
             <button
