@@ -471,7 +471,7 @@ export default function MapDashboard() {
               height: 44,
               fontSize: 18,
             }}
-            title="Mở sidebar / Open sidebar"
+            title="Mở thanh bên"
           >
             ☰
           </button>
@@ -490,7 +490,7 @@ export default function MapDashboard() {
               <div style={{ fontSize: 36, marginBottom: 16 }}>🗺️</div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>Đang tải dữ liệu...</div>
               <div style={{ opacity: 0.6, marginTop: 8, fontSize: 14 }}>
-                Loading case data and regions...
+                Đang tải dữ liệu ca bệnh và vùng...
               </div>
             </div>
           ) : (
@@ -570,12 +570,12 @@ function FiltersTab({
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <QuickStatCard 
-              title="Tổng ca / Total" 
+              title="Tổng ca" 
               value={stats.summary?.total_cases ?? 0} 
               icon="🏥"
             />
             <QuickStatCard 
-              title="Đang hoạt động / Active" 
+              title="Đang theo dõi" 
               value={
                 stats.byStatus
                   ?.filter((s: any) => ['suspected', 'probable', 'confirmed', 'under treatment', 'under observation'].includes(s.status))
@@ -584,13 +584,32 @@ function FiltersTab({
               icon="🚨"
               highlight
             />
+            <QuickStatCard 
+              title="Đã hồi phục" 
+              value={
+                stats.byStatus
+                  ?.filter((s: any) => s.status === 'recovered')
+                  .reduce((sum: number, s: any) => sum + s.total, 0) ?? 0
+              } 
+              icon="✅"
+            />
+            <QuickStatCard 
+              title="Tử vong" 
+              value={
+                stats.byStatus
+                  ?.filter((s: any) => s.status === 'deceased' || s.status === 'died')
+                  .reduce((sum: number, s: any) => sum + s.total, 0) ?? 0
+              } 
+              icon="⚫"
+              highlight
+            />
           </div>
         </div>
       )}
 
       {/* Display Mode */}
       <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Chế độ hiển thị / Display Mode</label>
+        <label style={labelStyle}>Chế độ hiển thị</label>
         <select 
           value={mode} 
           onChange={(e) => setMode(e.target.value as DisplayMode)} 
@@ -598,19 +617,19 @@ function FiltersTab({
         >
           <option value="points_disease">🦠 Loại bệnh (màu) + Mức độ</option>
           <option value="points_status">📊 Trạng thái (màu) + Mức độ</option>
-          <option value="heatmap">🔥 Bản đồ nhiệt / Heatmap</option>
+          <option value="heatmap">🔥 Bản đồ nhiệt</option>
         </select>
       </div>
 
       {/* Disease Type */}
       <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Loại bệnh / Disease Type</label>
+        <label style={labelStyle}>Loại bệnh</label>
         <select 
           value={diseaseType} 
           onChange={(e) => setDiseaseType(e.target.value)} 
           style={inputStyle}
         >
-          <option value="ALL">Tất cả / All</option>
+          <option value="ALL">Tất cả</option>
           {diseaseOptions.map((d: string) => (
             <option key={d} value={d}>{getBilingualDiseaseLabel(d)}</option>
           ))}
@@ -619,13 +638,13 @@ function FiltersTab({
 
       {/* Status */}
       <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Trạng thái / Status</label>
+        <label style={labelStyle}>Trạng thái</label>
         <select 
           value={status} 
           onChange={(e) => setStatus(e.target.value)} 
           style={inputStyle}
         >
-          <option value="ALL">Tất cả / All</option>
+          <option value="ALL">Tất cả</option>
           {statusOptions.map((s: string) => (
             <option key={s} value={s}>{getBilingualStatusLabel(s)}</option>
           ))}
@@ -634,7 +653,7 @@ function FiltersTab({
 
       {/* Quick date filters */}
       <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Khoảng thời gian / Time Period</label>
+        <label style={labelStyle}>Khoảng thời gian</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { key: 'all', label: 'Tất cả' },
@@ -662,7 +681,7 @@ function FiltersTab({
       {/* Custom date range with time */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <div>
-          <label style={labelStyle}>Từ / From</label>
+          <label style={labelStyle}>Từ</label>
           <input 
             type="datetime-local" 
             value={from ? `${from}T00:00` : ''} 
@@ -675,7 +694,7 @@ function FiltersTab({
           />
         </div>
         <div>
-          <label style={labelStyle}>Đến / To</label>
+          <label style={labelStyle}>Đến</label>
           <input 
             type="datetime-local" 
             value={to ? `${to}T23:59` : ''} 
@@ -709,7 +728,7 @@ function FiltersTab({
             style={{ accentColor: '#238636' }}
           />
           <span style={{ fontSize: 12 }}>
-            🎬 Hiển thị timeline / Show timeline
+            🎬 Hiển thị timeline
           </span>
         </label>
       </div>

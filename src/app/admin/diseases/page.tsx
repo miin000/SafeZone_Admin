@@ -11,8 +11,23 @@ const API = process.env.NEXT_PUBLIC_API_URL!;
 interface Disease {
   id: string;
   name: string;
+  nameVi?: string | null;
   description?: string;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  caseFatalityRate: number | null;
+  transmissionRoutes: string[] | null;
+  r0: number | null;
+  hasVaccine: boolean | null;
+  hasSpecificTreatment: boolean | null;
+  circulationLevel: string | null;
+  isNovelSpecialDangerous: boolean | null;
+  scoringNotes?: string | null;
+  c1: number | null;
+  c2: number | null;
+  c3: number | null;
+  c4: number | null;
+  sd: number | null;
+  group: 'A' | 'B' | 'C' | null;
   aliases?: string;
   icdCode?: string;
   isActive: boolean;
@@ -35,14 +50,39 @@ interface DiseaseOutbreak {
   updatedAt: string;
 }
 
-const RISK_LEVELS = [
-  { value: 'low', label: 'Thấp', labelEn: 'Low', color: '#4caf50', bgColor: '#4caf5020' },
-  { value: 'medium', label: 'Trung bình', labelEn: 'Medium', color: '#ff9800', bgColor: '#ff980020' },
-  { value: 'high', label: 'Cao', labelEn: 'High', color: '#f44336', bgColor: '#f4433620' },
-  { value: 'critical', label: 'Nguy hiểm', labelEn: 'Critical', color: '#9c27b0', bgColor: '#9c27b020' },
-];
+const GROUP_LABELS = { A: 'Nhóm A', B: 'Nhóm B', C: 'Nhóm C' };
+const TRANSMISSION_ROUTES = [
+  ['blood', 'Máu'],
+  ['skin', 'Da'],
+  ['mucosa', 'Niêm mạc'],
+  ['animal_to_human', 'Động vật → người'],
+  ['digestive', 'Tiêu hóa'],
+  ['respiratory', 'Hô hấp'],
+] as const;
+const CIRCULATION_LEVELS = [
+  ['stable_or_sporadic', 'Ổn định hoặc tản phát'],
+  ['large_outbreak_or_emerging', 'Dịch lớn hoặc mới nổi'],
+  ['pandemic_risk_or_elimination_target', 'Nguy cơ đại dịch / mục tiêu loại trừ'],
+] as const;
 
 const navItems = ADMIN_NAV_ITEMS;
+
+const emptyFormData = () => ({
+  name: '',
+  nameVi: '',
+  description: '',
+  aliases: '',
+  icdCode: '',
+  isActive: true,
+  caseFatalityRate: '',
+  transmissionRoutes: [] as string[],
+  r0: '',
+  hasVaccine: false,
+  hasSpecificTreatment: false,
+  circulationLevel: '',
+  isNovelSpecialDangerous: false,
+  scoringNotes: '',
+});
 
 export default function DiseasesPage() {
   const router = useRouter();
@@ -68,19 +108,20 @@ export default function DiseasesPage() {
   const [archiving, setArchiving] = useState(false);
   const [formData, setFormData] = useState<{
     name: string;
+    nameVi: string;
     description: string;
-    riskLevel: 'low' | 'medium' | 'high' | 'critical';
     aliases: string;
     icdCode: string;
     isActive: boolean;
-  }>({
-    name: '',
-    description: '',
-    riskLevel: 'medium',
-    aliases: '',
-    icdCode: '',
-    isActive: true,
-  });
+    caseFatalityRate: string;
+    transmissionRoutes: string[];
+    r0: string;
+    hasVaccine: boolean;
+    hasSpecificTreatment: boolean;
+    circulationLevel: string;
+    isNovelSpecialDangerous: boolean;
+    scoringNotes: string;
+  }>(emptyFormData());
   const [searchQuery, setSearchQuery] = useState('');
 
   const formatDateTime = (iso?: string | null) => {
@@ -428,6 +469,11 @@ export default function DiseasesPage() {
       const url = editingDisease 
         ? `${API}/diseases/${editingDisease.id}`
         : `${API}/diseases`;
+      const body = {
+        ...formData,
+        caseFatalityRate: Number(formData.caseFatalityRate),
+        r0: Number(formData.r0),
+      };
 
       const res = await fetch(url, {
         method,
@@ -435,22 +481,16 @@ export default function DiseasesPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
         alert(editingDisease ? '✅ Cập nhật bệnh thành công!' : '✅ Thêm bệnh mới thành công!');
         setShowModal(false);
         setEditingDisease(null);
-        setFormData({
-          name: '',
-          description: '',
-          riskLevel: 'medium',
-          aliases: '',
-          icdCode: '',
-          isActive: true,
-        });
+        setFormData(emptyFormData());
         loadDiseases();
+        window.dispatchEvent(new Event('safezone:diseaseCatalogUpdated'));
       } else if (res.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -484,6 +524,7 @@ export default function DiseasesPage() {
       if (res.ok) {
         alert('✅ Xóa bệnh thành công!');
         loadDiseases();
+        window.dispatchEvent(new Event('safezone:diseaseCatalogUpdated'));
       } else if (res.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -503,11 +544,19 @@ export default function DiseasesPage() {
     setEditingDisease(disease);
     setFormData({
       name: disease.name,
+      nameVi: disease.nameVi || '',
       description: disease.description || '',
-      riskLevel: disease.riskLevel,
       aliases: disease.aliases || '',
       icdCode: disease.icdCode || '',
       isActive: disease.isActive,
+      caseFatalityRate: disease.caseFatalityRate?.toString() || '',
+      transmissionRoutes: disease.transmissionRoutes || [],
+      r0: disease.r0?.toString() || '',
+      hasVaccine: disease.hasVaccine || false,
+      hasSpecificTreatment: disease.hasSpecificTreatment || false,
+      circulationLevel: disease.circulationLevel || '',
+      isNovelSpecialDangerous: disease.isNovelSpecialDangerous || false,
+      scoringNotes: disease.scoringNotes || '',
     });
     setShowModal(true);
   };
@@ -516,14 +565,7 @@ export default function DiseasesPage() {
   const closeModal = () => {
     setShowModal(false);
     setEditingDisease(null);
-    setFormData({
-      name: '',
-      description: '',
-      riskLevel: 'medium',
-      aliases: '',
-      icdCode: '',
-      isActive: true,
-    });
+    setFormData(emptyFormData());
   };
 
   // Filter diseases
@@ -532,9 +574,6 @@ export default function DiseasesPage() {
     (d.aliases && d.aliases.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const getRiskLevelConfig = (level: string) => {
-    return RISK_LEVELS.find(r => r.value === level) || RISK_LEVELS[1];
-  };
 
   return (
     <div className="flex">
@@ -549,6 +588,7 @@ export default function DiseasesPage() {
           <button
             onClick={() => {
               setEditingDisease(null);
+              setFormData(emptyFormData());
               setShowModal(true);
             }}
             className="px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-semibold hover:shadow-lg transition-shadow"
@@ -590,7 +630,7 @@ export default function DiseasesPage() {
                     <thead>
                       <tr className="bg-slate-100">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Tên bệnh</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Mức độ</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Điểm / nhóm</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Mô tả</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Mã ICD</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Trạng thái</th>
@@ -599,20 +639,21 @@ export default function DiseasesPage() {
                     </thead>
                     <tbody>
                       {filteredDiseases.map((disease) => {
-                        const riskConfig = getRiskLevelConfig(disease.riskLevel);
                         return (
                           <tr key={disease.id} className="border-t border-slate-200 hover:bg-slate-50">
-                            <td className="px-4 py-3 font-medium text-slate-900">{disease.name}</td>
-                            <td className="px-4 py-3">
-                              <span
-                                className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium"
-                                style={{
-                                  backgroundColor: riskConfig.bgColor,
-                                  color: riskConfig.color,
-                                }}
-                              >
-                                {riskConfig.label}
-                              </span>
+                            <td className="px-4 py-3 font-medium text-slate-900">
+                              {disease.name}
+                              {disease.nameVi ? (
+                                <span className="text-slate-500 font-normal"> ({disease.nameVi})</span>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <div className="font-semibold text-slate-800">
+                                S<sub>d</sub> = {disease.sd ?? '-'} · {disease.group ? GROUP_LABELS[disease.group] : 'Chưa đủ dữ liệu'}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                c1={disease.c1 ?? '-'} c2={disease.c2 ?? '-'} c3={disease.c3 ?? '-'} c4={disease.c4 ?? '-'}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-sm text-slate-600">
                               {disease.description ? disease.description.substring(0, 40) + (disease.description.length > 40 ? '...' : '') : '-'}
@@ -668,7 +709,7 @@ export default function DiseasesPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-slate-200">
               <h2 className="text-xl font-bold text-slate-800">
                 {editingDisease ? '✏️ Sửa bệnh' : '➕ Thêm bệnh mới'}
@@ -686,32 +727,90 @@ export default function DiseasesPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="VD: COVID-19, Sốt xuất huyết"
+                  placeholder="VD: Dengue, COVID-19"
                 />
               </div>
 
-              {/* Risk Level */}
+              {/* Vietnamese Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">
-                  Mức độ nguy hiểm
+                  Tên tiếng Việt
                 </label>
-                <select
-                  value={formData.riskLevel}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      riskLevel: e.target.value as Disease['riskLevel'],
-                    })
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  {RISK_LEVELS.map((level) => (
-                    <option key={level.value} value={level.value}>
-                      {level.label} / {level.labelEn}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={formData.nameVi}
+                  onChange={(e) => setFormData({ ...formData, nameVi: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="VD: Sốt xuất huyết"
+                />
               </div>
+
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                Nhóm bệnh và S<sub>d</sub> được backend tự tính từ các thuộc tính dưới đây; không nhập mức độ bằng tay.
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm text-slate-700">
+                  Tỷ lệ chết/mắc (%) *
+                  <input type="number" min="0" max="100" step="0.01" required value={formData.caseFatalityRate}
+                    onChange={(e) => setFormData({ ...formData, caseFatalityRate: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50" />
+                </label>
+                <label className="text-sm text-slate-700">
+                  R0 *
+                  <input type="number" min="0" step="0.01" required value={formData.r0}
+                    onChange={(e) => setFormData({ ...formData, r0: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50" />
+                </label>
+              </div>
+
+              <fieldset>
+                <legend className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Đường lây *</legend>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {TRANSMISSION_ROUTES.map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2">
+                      <input type="checkbox" checked={formData.transmissionRoutes.includes(value)}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          transmissionRoutes: e.target.checked
+                            ? [...formData.transmissionRoutes, value]
+                            : formData.transmissionRoutes.filter((route) => route !== value),
+                        })} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={formData.hasVaccine}
+                  onChange={(e) => setFormData({ ...formData, hasVaccine: e.target.checked })} /> Có vắc-xin</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={formData.hasSpecificTreatment}
+                  onChange={(e) => setFormData({ ...formData, hasSpecificTreatment: e.target.checked })} /> Có điều trị đặc hiệu</label>
+              </div>
+
+              <label className="block text-sm text-slate-700">
+                Mức độ lưu hành *
+                <select required value={formData.circulationLevel}
+                  onChange={(e) => setFormData({ ...formData, circulationLevel: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50">
+                  <option value="">Chọn mức độ</option>
+                  {CIRCULATION_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={formData.isNovelSpecialDangerous}
+                  onChange={(e) => setFormData({ ...formData, isNovelSpecialDangerous: e.target.checked })} />
+                Bệnh mới/n​​guy hiểm đặc biệt (ngoại lệ nhóm A)
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                Ghi chú căn cứ / nguồn
+                <textarea value={formData.scoringNotes}
+                  onChange={(e) => setFormData({ ...formData, scoringNotes: e.target.value })}
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50" rows={2} />
+              </label>
 
               {/* Description */}
               <div>

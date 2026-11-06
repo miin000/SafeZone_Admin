@@ -499,8 +499,7 @@ export interface Stats {
 export type DisplayMode = 
   | 'points_disease' 
   | 'points_status'
-  | 'heatmap'
-  | 'clusters_dbscan';
+  | 'heatmap';
 
 export type BaseMapStyle = 'osm' | 'dark' | 'light' | 'satellite';
 
@@ -530,64 +529,6 @@ export interface GridDensityData {
   total_cases: number;
   max_count: number;
   max_severity: number;
-}
-
-export interface DBSCANCluster {
-  id: number | string;
-  count: number;
-  center: {
-    lat: number;
-    lon: number;
-  };
-  severity: {
-    total: number;
-    average: number;
-    max: number;
-    combined: number;
-    score?: number;
-  };
-  diseases: string[];
-  statuses: string[];
-  dbscan: {
-    pointTypeSummary: {
-      core: number;
-      border: number;
-    };
-    neighbors: {
-      min: number;
-      max: number;
-    };
-  };
-  timeRange: {
-    earliest: string;
-    latest: string;
-  };
-}
-
-export interface DBSCANNoisePoint {
-  id: number;
-  disease_type: string;
-  status: string;
-  severity: number;
-  reported_time: string;
-  lat: number;
-  lon: number;
-}
-
-export interface DBSCANClustersResponse {
-  algorithm: 'DBSCAN';
-  parameters: {
-    epsDegrees: number;
-    epsKmApprox: number;
-    minPoints: number;
-    includeNoise: boolean;
-  };
-  totalClusters: number;
-  totalCasesInClusters: number;
-  noiseCount: number;
-  totalCases: number;
-  clusters: DBSCANCluster[];
-  noisePoints: DBSCANNoisePoint[];
 }
 
 // ============================================
@@ -657,6 +598,29 @@ export const DISEASE_LABELS_EN: Record<string, string> = {
   'Other': 'Other',
   'Unknown': 'Unknown',
 };
+
+export type DiseaseCatalogItem = {
+  name: string;
+  nameVi?: string | null;
+};
+
+let DISEASE_CATALOG_BY_NAME: Record<string, DiseaseCatalogItem> = {};
+
+export function setDiseaseCatalog(items: DiseaseCatalogItem[]) {
+  const next: Record<string, DiseaseCatalogItem> = {};
+  for (const item of items || []) {
+    const key = item?.name?.trim();
+    if (!key) continue;
+    next[key] = { name: key, nameVi: item?.nameVi ?? null };
+  }
+  DISEASE_CATALOG_BY_NAME = next;
+}
+
+export function getDiseaseCatalogItem(name: string): DiseaseCatalogItem | undefined {
+  const key = (name || '').trim();
+  if (!key) return undefined;
+  return DISEASE_CATALOG_BY_NAME[key];
+}
 
 // ============================================
 // STATUS CONFIGURATION (BILINGUAL)
@@ -816,6 +780,11 @@ export function getSeverityLabel(severity: number, lang: 'vi' | 'en' = 'en'): st
  * Get disease label with language support
  */
 export function getDiseaseLabel(diseaseType: string, lang: 'vi' | 'en' = 'en'): string {
+  const catalog = getDiseaseCatalogItem(diseaseType);
+  if (catalog) {
+    if (lang === 'vi') return catalog.nameVi || catalog.name;
+    return catalog.name;
+  }
   if (lang === 'vi') {
     return DISEASE_LABELS_VI[diseaseType] || diseaseType;
   }
@@ -836,15 +805,15 @@ export function getStatusLabel(status: string, lang: 'vi' | 'en' = 'en'): string
  * Get bilingual label (combines English and Vietnamese)
  */
 export function getBilingualDiseaseLabel(diseaseType: string): string {
-  const en = DISEASE_LABELS_EN[diseaseType] || diseaseType;
-  const vi = DISEASE_LABELS_VI[diseaseType];
+  const catalog = getDiseaseCatalogItem(diseaseType);
+  const en = catalog?.name || DISEASE_LABELS_EN[diseaseType] || diseaseType;
+  const vi = catalog?.nameVi || DISEASE_LABELS_VI[diseaseType];
   return vi && vi !== en ? `${en} (${vi})` : en;
 }
 
 export function getBilingualStatusLabel(status: string): string {
-  const en = STATUS_LABELS_EN[status] || status;
-  const vi = STATUS_LABELS_VI[status];
-  return vi && vi !== en ? `${en} (${vi})` : en;
+  // UI in Admin is Vietnamese-first to avoid EN/VI mixed labels.
+  return STATUS_LABELS_VI[status] || status;
 }
 
 export function getBilingualSeverityLabel(severity: number): string {
@@ -897,29 +866,6 @@ export function getRiskLevel(normalizedScore: number): RiskLevel {
 export function getRiskColor(level: RiskLevel): string {
   const config = RISK_LEVELS.find(r => r.level === level);
   return config?.color || '#7f7f7f';
-}
-
-/**
- * Calculate cluster severity based on aggregated cases
- * This provides proper severity calculation when cases are clustered
- */
-export function calculateClusterSeverity(cases: { severity: number }[]): number {
-  if (cases.length === 0) return 1;
-  
-  // Calculate weighted severity based on case count and individual severities
-  const totalSeverity = cases.reduce((sum, c) => sum + c.severity, 0);
-  const avgSeverity = totalSeverity / cases.length;
-  
-  // Factor in case count - more cases = higher risk
-  const countFactor = Math.min(cases.length / 10, 1); // caps at 10 cases
-  
-  // Combined score: base severity + count bonus
-  const combinedScore = avgSeverity + (countFactor * 1.5);
-  
-  // Return severity level (1-3)
-  if (combinedScore >= 3.5) return 3; // High
-  if (combinedScore >= 2) return 2;   // Medium
-  return 1;                            // Low
 }
 
 /**
@@ -1119,4 +1065,3 @@ export const BASE_MAP_CONFIGS: Record<BaseMapStyle, {
     nameVi: 'Vệ tinh',
   },
 };
-

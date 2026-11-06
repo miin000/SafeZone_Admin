@@ -7,14 +7,6 @@ const LocationPicker = dynamic(() => import('./LocationPicker'), { ssr: false })
 
 const API = process.env.NEXT_PUBLIC_API_URL!;
 
-// Risk levels
-const RISK_LEVELS = [
-  { value: 'low', label: 'Thấp / Low', color: '#4caf50' },
-  { value: 'medium', label: 'Trung bình / Medium', color: '#ff9800' },
-  { value: 'high', label: 'Cao / High', color: '#f44336' },
-  { value: 'critical', label: 'Nguy hiểm / Critical', color: '#9c27b0' },
-];
-
 // Disease types loaded from backend
 const DEFAULT_DISEASE_TYPES: string[] = [];
 
@@ -24,8 +16,6 @@ export interface ZoneFormData {
   lat: number;
   lon: number;
   radiusKm: number;
-  riskLevel: string;
-  caseCount: number;
   description: string;
   startDate: string;
 }
@@ -36,14 +26,6 @@ interface ZoneModalProps {
   zoneId?: string | null;
   onSave?: () => void;
   initialLocation?: { lat: number; lon: number };
-}
-
-interface ZoneCasePoint {
-  id: string;
-  diseaseType: string;
-  status: string;
-  lat: number;
-  lon: number;
 }
 
 export default function ZoneModal({
@@ -59,15 +41,12 @@ export default function ZoneModal({
     DEFAULT_DISEASE_TYPES,
   );
   const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [casePoints, setCasePoints] = useState<ZoneCasePoint[]>([]);
   const [formData, setFormData] = useState<ZoneFormData>({
     name: '',
     diseaseType: '',
     lat: initialLocation?.lat || 21.0285,
     lon: initialLocation?.lon || 105.8542,
     radiusKm: 1,
-    riskLevel: 'medium',
-    caseCount: 0,
     description: '',
     startDate: new Date().toISOString().split('T')[0],
   });
@@ -96,31 +75,6 @@ export default function ZoneModal({
         setDiseaseTypes(DEFAULT_DISEASE_TYPES);
       });
 
-    fetch(`${API}/gis/cases`)
-      .then((r) => r.json())
-      .then((fc) => {
-        const features = Array.isArray(fc?.features) ? fc.features : [];
-        const points: ZoneCasePoint[] = features
-          .map((f: any) => {
-            const coords = f?.geometry?.coordinates;
-            if (!Array.isArray(coords) || coords.length < 2) return null;
-            const lon = Number(coords[0]);
-            const lat = Number(coords[1]);
-            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-            return {
-              id: String(f?.properties?.id ?? ''),
-              diseaseType: String(f?.properties?.disease_type ?? 'Unknown'),
-              status: String(f?.properties?.status ?? 'unknown'),
-              lat,
-              lon,
-            };
-          })
-          .filter(Boolean) as ZoneCasePoint[];
-        setCasePoints(points);
-      })
-      .catch(() => {
-        setCasePoints([]);
-      });
   }, [isOpen]);
 
   // Load zone data if editing
@@ -136,8 +90,6 @@ export default function ZoneModal({
             lat: zone.center?.coordinates?.[1] || zone.latitude || 21.0285,
             lon: zone.center?.coordinates?.[0] || zone.longitude || 105.8542,
             radiusKm: zone.radiusKm || 1,
-            riskLevel: zone.riskLevel || 'medium',
-            caseCount: zone.caseCount || 0,
             description: zone.description || '',
             startDate: zone.startDate
               ? new Date(zone.startDate).toISOString().split('T')[0]
@@ -154,72 +106,11 @@ export default function ZoneModal({
         lat: initialLocation?.lat || 21.0285,
         lon: initialLocation?.lon || 105.8542,
         radiusKm: 1,
-        riskLevel: 'medium',
-        caseCount: 0,
         description: '',
         startDate: new Date().toISOString().split('T')[0],
       });
     }
   }, [zoneId, isOpen, initialLocation, diseaseTypes]);
-
-  const calculateAutoCaseCount = (
-    points: ZoneCasePoint[],
-    diseaseType: string,
-    lat: number,
-    lon: number,
-    radiusKm: number,
-  ): number => {
-    if (!diseaseType || !Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(radiusKm)) {
-      return 0;
-    }
-
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const earthKm = 6371;
-    const activeStatuses = new Set([
-      'suspected',
-      'probable',
-      'confirmed',
-      'under treatment',
-      'under observation',
-    ]);
-
-    return points.filter((p) => {
-      if (p.diseaseType !== diseaseType) return false;
-      if (!activeStatuses.has(p.status)) return false;
-
-      const dLat = toRad(p.lat - lat);
-      const dLon = toRad(p.lon - lon);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat)) * Math.cos(toRad(p.lat)) *
-          Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distanceKm = earthKm * c;
-      return distanceKm <= radiusKm;
-    }).length;
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const autoCount = calculateAutoCaseCount(
-      casePoints,
-      formData.diseaseType,
-      formData.lat,
-      formData.lon,
-      formData.radiusKm,
-    );
-    if (autoCount !== formData.caseCount) {
-      setFormData((prev) => ({ ...prev, caseCount: autoCount }));
-    }
-  }, [
-    isOpen,
-    casePoints,
-    formData.diseaseType,
-    formData.lat,
-    formData.lon,
-    formData.radiusKm,
-    formData.caseCount,
-  ]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -243,13 +134,15 @@ export default function ZoneModal({
       const method = zoneId ? 'PATCH' : 'POST';
       const token = localStorage.getItem('token');
 
+      const { name, diseaseType, lat, lon, radiusKm, description, startDate } =
+        formData;
       const res = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ name, diseaseType, lat, lon, radiusKm, description, startDate }),
       });
 
       if (!res.ok) {
@@ -269,8 +162,6 @@ export default function ZoneModal({
   };
 
   if (!isOpen) return null;
-
-  const riskConfig = RISK_LEVELS.find((r) => r.value === formData.riskLevel);
 
   return (
     <div style={overlayStyle}>
@@ -331,33 +222,11 @@ export default function ZoneModal({
                 </select>
               </div>
 
-              {/* Risk Level */}
-              <div style={fieldStyle}>
-                <label style={labelStyle}>
-                  Mức độ nguy hiểm / Risk Level <span style={{ color: '#f44336' }}>*</span>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {RISK_LEVELS.map((level) => (
-                    <button
-                      key={level.value}
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, riskLevel: level.value }))}
-                      style={{
-                        padding: '10px 8px',
-                        borderRadius: 8,
-                        border: `2px solid ${formData.riskLevel === level.value ? level.color : '#2a2a2a'}`,
-                        background: formData.riskLevel === level.value ? `${level.color}20` : 'transparent',
-                        color: formData.riskLevel === level.value ? level.color : '#9ca3af',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {level.label}
-                    </button>
-                  ))}
-                </div>
+              <div style={{ ...fieldStyle, color: '#94a3b8', fontSize: 12 }}>
+                Mức rủi ro và số ca được backend tự tính từ bệnh, ca đã xác nhận,
+                bán kính và mật độ ca. Đây chỉ là công cụ hỗ trợ ưu tiên xác minh,
+                không thay thế đánh giá dịch tễ chính thức; trọng số minh họa,
+                chưa hiệu chỉnh.
               </div>
 
               {/* Location Section */}
@@ -443,24 +312,6 @@ export default function ZoneModal({
                 </button>
               </div>
 
-              {/* Case Count (auto) */}
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Số ca trong vùng / Case Count</label>
-                <div
-                  style={{
-                    ...inputStyle,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    background: '#111827',
-                    borderColor: '#374151',
-                  }}
-                >
-                  <span>Tự động theo loại bệnh + vị trí + bán kính</span>
-                  <strong style={{ color: '#22c55e' }}>{formData.caseCount} ca</strong>
-                </div>
-              </div>
-
               {/* Start Date with Time */}
               <div style={fieldStyle}>
                 <label style={labelStyle}>Ngày bắt đầu / Start Date</label>
@@ -486,10 +337,9 @@ export default function ZoneModal({
                 />
               </div>
 
-              {/* Preview */}
               <div style={{
-                background: `${riskConfig?.color}10`,
-                border: `1px solid ${riskConfig?.color}40`,
+                background: '#111827',
+                border: '1px solid #374151',
                 borderRadius: 10,
                 padding: 12,
                 marginTop: 12,
@@ -500,8 +350,8 @@ export default function ZoneModal({
                     width: 40,
                     height: 40,
                     borderRadius: '50%',
-                    background: `${riskConfig?.color}30`,
-                    border: `2px solid ${riskConfig?.color}`,
+                    background: '#1f2937',
+                    border: '2px solid #475569',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -511,7 +361,7 @@ export default function ZoneModal({
                   <div>
                     <div style={{ fontWeight: 700 }}>{formData.name || 'Vùng dịch mới'}</div>
                     <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      {formData.diseaseType} • {formData.radiusKm}km • {formData.caseCount} ca
+                      {formData.diseaseType} • {formData.radiusKm}km • Rủi ro do backend tính
                     </div>
                   </div>
                 </div>
@@ -566,7 +416,6 @@ export default function ZoneModal({
                 lat={formData.lat}
                 lon={formData.lon}
                 radiusKm={formData.radiusKm}
-                casePoints={casePoints}
                 onChange={(lat, lon) => {
                   setFormData((prev) => ({ ...prev, lat, lon }));
                 }}

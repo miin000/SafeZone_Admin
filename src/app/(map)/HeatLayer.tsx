@@ -18,14 +18,19 @@ export default function HeatLayer({ cases }: { cases: FeatureCollection }) {
       const [lon, lat] = geom.coordinates || [];
       if (typeof lat !== 'number' || typeof lon !== 'number') continue;
 
-      // Use equal weight so intensity reflects case density.
-      pts.push([lat, lon, 1]);
+      // Weight = severity (normalized) so heatmap reflects both density and severity.
+      const severityRaw = Number(f?.properties?.severity ?? 1);
+      const severity = Number.isFinite(severityRaw) ? severityRaw : 1;
+      const weight = Math.min(Math.max(severity / 3, 0.2), 1);
+
+      pts.push([lat, lon, weight]);
     }
 
     // @ts-ignore
     const heat = (L as any).heatLayer(pts, {
       radius: 22,
       blur: 18,
+      max: 1,
       maxZoom: 14,
     }).addTo(map);
 

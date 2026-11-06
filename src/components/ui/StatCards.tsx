@@ -26,7 +26,7 @@ export function LineChart({
   if (!data || data.length === 0) {
     return (
       <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-        Không có dữ liệu / No data
+        Không có dữ liệu
       </div>
     );
   }

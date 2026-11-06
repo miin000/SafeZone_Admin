@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
+import DiseaseCatalogInit from "@/components/DiseaseCatalogInit";
 
 const inter = Inter({
   subsets: ["latin", "vietnamese"],
@@ -10,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SafeZone Admin - Disease Surveillance System",
-  description: "Admin dashboard for SafeZone disease monitoring and epidemic management",
+  title: "SafeZone Admin - Hệ thống giám sát dịch bệnh",
+  description: "Trang quản trị theo dõi dịch bệnh và quản lý vùng dịch",
 };
 
 export default function RootLayout({
@@ -28,6 +29,7 @@ export default function RootLayout({
         className={`${inter.className} antialiased`}
         suppressHydrationWarning
       >
+        <DiseaseCatalogInit />
         <AuthGuard>{children}</AuthGuard>
       </body>
     </html>

@@ -89,6 +89,10 @@ export default function StatsPage() {
     .filter(s => ['suspected', 'probable', 'confirmed', 'under treatment', 'under observation'].includes(s.status))
     .reduce((sum, s) => sum + s.total, 0);
 
+  const deceasedCases = (byStatus || [])
+    .filter((s) => s.status === 'deceased' || s.status === 'died')
+    .reduce((sum, s) => sum + s.total, 0);
+
   const maxDiseaseValue = Math.max(...(byDisease || []).map(d => d.total), 1);
 
   // Weekly data for chart
@@ -110,7 +114,7 @@ export default function StatsPage() {
 
         <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">📊 Statistics</h1>
+            <h1 className="text-2xl font-bold text-slate-800">📊 Thống kê</h1>
             <p className="text-sm text-slate-500">Phân tích số liệu & xu hướng dịch bệnh</p>
           </div>
           <div className="flex gap-3">
@@ -199,28 +203,29 @@ export default function StatsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <SummaryCard 
                     icon="🏥" 
-                    label="Total Cases" 
+                    label="Tổng số ca" 
                     value={summary?.total_cases ?? 0}
                     color="#3b82f6"
                   />
                   <SummaryCard 
                     icon="🚨" 
-                    label="Active Cases" 
+                    label="Ca đang theo dõi" 
                     value={activeCases}
                     color="#dc2626"
                     highlight
                   />
                   <SummaryCard 
                     icon="✅" 
-                    label="Recovered" 
+                    label="Đã hồi phục" 
                     value={(byStatus || []).filter(s => s.status === 'recovered').reduce((sum, s) => sum + s.total, 0)}
                     color="#22c55e"
                   />
                   <SummaryCard 
-                    icon="⚠️" 
-                    label="High Severity" 
-                    value={summary?.high_severity ?? 0}
-                    color="#f59e0b"
+                    icon="⚫" 
+                    label="Tử vong" 
+                    value={deceasedCases}
+                    color="#111827"
+                    highlight={deceasedCases > 0}
                   />
                 </div>
 
@@ -347,23 +352,78 @@ export default function StatsPage() {
                 <div style={chartCardStyle}>
                   <div style={chartTitleStyle}>📊 Theo trạng thái</div>
                   <div style={{ marginTop: 20 }}>
-                    {(byStatus || []).slice(0, 6).map((s) => {
-                      const percent = summary?.total_cases ? (s.total / summary.total_cases) * 100 : 0;
-                      return (
-                        <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                          <span style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: getStatusColor(s.status),
-                            flexShrink: 0,
-                          }} />
-                          <span style={{ flex: 1, fontSize: 12, color: '#475569' }}>{getBilingualStatusLabel(s.status)}</span>
-                          <span style={{ fontSize: 12, color: '#94a3b8', minWidth: 40 }}>{percent.toFixed(0)}%</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: getStatusColor(s.status), minWidth: 40, textAlign: 'right' }}>{s.total}</span>
-                        </div>
+                    {(() => {
+                      const list = Array.isArray(byStatus) ? [...byStatus] : [];
+                      const deceasedRow = list.find(
+                        (s) => s.status === 'deceased' || s.status === 'died',
                       );
-                    })}
+
+                      const top = list.slice(0, 6);
+                      const deceasedInTop = top.some(
+                        (s) => s.status === 'deceased' || s.status === 'died',
+                      );
+
+                      // Ensure deceased is visible even if it isn't in the top 6
+                      if (deceasedRow && !deceasedInTop && top.length > 0) {
+                        top[top.length - 1] = deceasedRow;
+                      }
+
+                      const unique = Array.from(
+                        new Map(top.map((s) => [s.status, s])).values(),
+                      );
+
+                      return unique.map((s) => {
+                        const percent = summary?.total_cases
+                          ? (s.total / summary.total_cases) * 100
+                          : 0;
+                        return (
+                          <div
+                            key={s.status}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: getStatusColor(s.status),
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span
+                              style={{ flex: 1, fontSize: 12, color: '#475569' }}
+                            >
+                              {getBilingualStatusLabel(s.status)}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: '#94a3b8',
+                                minWidth: 40,
+                              }}
+                            >
+                              {percent.toFixed(0)}%
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: getStatusColor(s.status),
+                                minWidth: 40,
+                                textAlign: 'right',
+                              }}
+                            >
+                              {s.total}
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 

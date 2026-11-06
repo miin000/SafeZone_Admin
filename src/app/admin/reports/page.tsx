@@ -135,23 +135,23 @@ function normalizeReport(apiReport: any): Report {
 }
 
 /** Get next available workflow actions based on current status */
-function getWorkflowActions(status: ReportStatus): { key: string; label: string; icon: string; color: string }[] {
+function getWorkflowActions(status: ReportStatus): { key: string; label: string; color: string }[] {
   switch (status) {
     case 'submitted':
-      return [{ key: 'preliminary-review', label: 'Xem xét sơ bộ', icon: '🔍', color: 'bg-blue-500 hover:bg-blue-600' }];
+      return [{ key: 'preliminary-review', label: 'Xem xét sơ bộ', color: 'bg-blue-500 hover:bg-blue-600' }];
     case 'under_review':
-      return [{ key: 'official-confirm', label: 'Duyệt xác nhận', icon: '✅', color: 'bg-emerald-500 hover:bg-emerald-600' }];
+      return [{ key: 'official-confirm', label: 'Duyệt xác nhận', color: 'bg-emerald-500 hover:bg-emerald-600' }];
     case 'field_verification':
-      return [{ key: 'field-verify', label: 'Xác minh thực địa', icon: '🏥', color: 'bg-orange-500 hover:bg-orange-600' }];
+      return [{ key: 'field-verify', label: 'Xác minh thực địa', color: 'bg-orange-500 hover:bg-orange-600' }];
     case 'confirmed':
       return [
-        { key: 'official-confirm', label: 'Xác nhận chính thức', icon: '✅', color: 'bg-emerald-500 hover:bg-emerald-600' },
-        { key: 'close', label: 'Đóng báo cáo', icon: '📁', color: 'bg-slate-500 hover:bg-slate-600' },
+        { key: 'official-confirm', label: 'Xác nhận chính thức', color: 'bg-emerald-500 hover:bg-emerald-600' },
+        { key: 'close', label: 'Đóng báo cáo', color: 'bg-slate-500 hover:bg-slate-600' },
       ];
     case 'pending':
       return [];
     case 'verified':
-      return [{ key: 'official-confirm', label: 'Duyệt xác nhận', icon: '✅', color: 'bg-emerald-500 hover:bg-emerald-600' }];
+      return [{ key: 'official-confirm', label: 'Duyệt xác nhận', color: 'bg-emerald-500 hover:bg-emerald-600' }];
     default:
       return [];
   }
@@ -431,6 +431,8 @@ export default function ReportsPage() {
 
   // Legacy quick reject via status endpoint
   const handleQuickReject = async (report: Report) => {
+    const ok = confirm('Từ chối sẽ chuyển báo cáo sang mục "Từ chối". Bạn có chắc muốn tiếp tục?');
+    if (!ok) return;
     try {
       const res = await fetch(`${API}/reports/${report.id}/status`, {
         method: 'PATCH',
@@ -438,8 +440,15 @@ export default function ReportsPage() {
         body: JSON.stringify({ status: 'rejected', adminNote: 'Từ chối nhanh' }),
       });
       if (res.ok) {
-        await loadReports();
-        alert('✅ Đã từ chối báo cáo');
+        // If user is currently filtering by a non-rejected status, the item will disappear from the list.
+        // Switch filter to show where the report went.
+        if (statusFilter !== 'ALL' && statusFilter !== 'rejected') {
+          setStatusFilter('rejected');
+          setCurrentPage(1);
+        } else {
+          await loadReports();
+        }
+        alert('Đã từ chối báo cáo (đã chuyển sang mục Từ chối).');
       } else if (!handleAuthError(res.status)) {
         alert('❌ Lỗi từ chối báo cáo');
       }
@@ -571,7 +580,7 @@ export default function ReportsPage() {
                 {Object.entries(REPORT_STATUS_CONFIG).map(([status, config]) => {
                   // Skip backward compat statuses in filter
                   if (['resolved'].includes(status)) return null;
-                  return <option key={status} value={status}>{config.icon} {config.labelVi}</option>;
+                  return <option key={status} value={status}>{config.labelVi}</option>;
                 })}
               </select>
               <select
@@ -714,7 +723,7 @@ export default function ReportsPage() {
                                 displayStatus === 'closed' || displayStatus === 'resolved' ? 'bg-slate-100 text-slate-700' :
                                 'bg-purple-100 text-purple-700'
                               }`}>
-                                {statusConfig.icon} {statusConfig.labelVi}
+                                {statusConfig.labelVi}
                               </span>
                             </td>
                             <td>
@@ -750,7 +759,7 @@ export default function ReportsPage() {
                                     className={`p-2 rounded-lg hover:opacity-80 text-white text-xs ${actions[0].color} transition-colors`}
                                     title={actions[0].label}
                                   >
-                                    {actions[0].icon}
+                                    Xử lý
                                   </button>
                                 )}
                                 {report.status !== 'rejected' && report.status !== 'closed' && (
@@ -982,10 +991,10 @@ function ReviewModal({
               report.status === 'rejected' ? 'badge-error' :
               'bg-slate-100 text-slate-700'
             }`}>
-              {statusConfig.icon} {statusConfig.labelVi}
+              {statusConfig.labelVi}
             </span>
             <span className="badge" style={{ background: priorityConfig.color + '20', color: priorityConfig.color }}>
-              {priorityConfig.icon} {priorityConfig.label}
+              {priorityConfig.label}
             </span>
             <span className="badge bg-blue-100 text-blue-700">
               {report.reportType === 'outbreak_alert' ? '🚨 Cảnh báo ổ dịch' : '📋 Ca bệnh'}
@@ -1267,11 +1276,11 @@ function ReviewModal({
           {/* Verification Trail */}
           {(report.autoVerifiedAt || report.preliminaryReviewAt || report.fieldVerifiedAt || report.officialConfirmAt) && (
             <div className="card p-4 mb-4">
-              <h3 className="font-semibold text-slate-800 mb-3">📜 Quá trình xác minh</h3>
+              <h3 className="font-semibold text-slate-800 mb-3">Quá trình xác minh</h3>
               <div className="space-y-3">
                 {report.autoVerifiedAt && (
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-sm">🤖</div>
+                    <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-cyan-400 flex-shrink-0" />
                     <div>
                       <div className="text-sm font-medium">Xác nhận tự động</div>
                       <div className="text-xs text-slate-500">{getTimeAgo(report.autoVerifiedAt)}</div>
@@ -1280,7 +1289,7 @@ function ReviewModal({
                 )}
                 {report.preliminaryReviewAt && (
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm">🔍</div>
+                    <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-blue-400 flex-shrink-0" />
                     <div>
                       <div className="text-sm font-medium">Xem xét sơ bộ: {report.preliminaryReviewResult}</div>
                       <div className="text-xs text-slate-500">{getTimeAgo(report.preliminaryReviewAt)}</div>
@@ -1290,7 +1299,7 @@ function ReviewModal({
                 )}
                 {report.fieldVerifiedAt && (
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-sm">🏥</div>
+                    <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-orange-400 flex-shrink-0" />
                     <div>
                       <div className="text-sm font-medium">Xác minh thực địa: {report.fieldVerificationResult}</div>
                       <div className="text-xs text-slate-500">{getTimeAgo(report.fieldVerifiedAt)}</div>
@@ -1300,7 +1309,7 @@ function ReviewModal({
                 )}
                 {report.officialConfirmAt && (
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm">✅</div>
+                    <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0" />
                     <div>
                       <div className="text-sm font-medium">Xác nhận chính thức: {report.officialClassification}</div>
                       <div className="text-xs text-slate-500">{getTimeAgo(report.officialConfirmAt)}</div>
@@ -1310,7 +1319,7 @@ function ReviewModal({
                 )}
                 {report.closedAt && (
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm">📁</div>
+                    <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-slate-400 flex-shrink-0" />
                     <div>
                       <div className="text-sm font-medium">Đóng: {report.closureAction}</div>
                       <div className="text-xs text-slate-500">{getTimeAgo(report.closedAt)}</div>
@@ -1325,7 +1334,7 @@ function ReviewModal({
           {/* Status History */}
           {statusHistory.length > 0 && (
             <div className="card p-4 mb-4">
-              <h3 className="font-semibold text-slate-800 mb-3">📋 Lịch sử trạng thái</h3>
+              <h3 className="font-semibold text-slate-800 mb-3">Lịch sử trạng thái</h3>
               <div className="space-y-2">
                 {statusHistory.map((entry) => {
                   const newConfig = getReportStatusConfig(entry.newStatus);
@@ -1338,7 +1347,7 @@ function ReviewModal({
                           <span className="text-slate-400">→</span>
                         </>
                       )}
-                      <span className="badge bg-emerald-100 text-emerald-700 text-xs">{newConfig.icon} {newConfig.labelVi}</span>
+                      <span className="badge bg-emerald-100 text-emerald-700 text-xs">{newConfig.labelVi}</span>
                       {entry.note && <span className="text-slate-500 text-xs italic">- {entry.note}</span>}
                     </div>
                   );
@@ -1350,7 +1359,7 @@ function ReviewModal({
           {/* Workflow Action Section */}
           {actions.length > 0 && (
             <div className="card p-4 border-2 border-emerald-200 bg-emerald-50">
-              <h3 className="font-semibold text-slate-800 mb-4">✍️ Hành động tiếp theo</h3>
+              <h3 className="font-semibold text-slate-800 mb-4">Hành động tiếp theo</h3>
               
               {/* Action tabs */}
               <div className="flex flex-wrap gap-2 mb-4">
@@ -1360,7 +1369,7 @@ function ReviewModal({
                     onClick={() => { setActiveAction(a.key); setNote(''); }}
                     className={`btn text-sm ${activeAction === a.key ? `${a.color} text-white` : 'bg-white border border-slate-200 text-slate-700'}`}
                   >
-                    {a.icon} {a.label}
+                    {a.label}
                   </button>
                 ))}
               </div>
@@ -1371,9 +1380,9 @@ function ReviewModal({
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Kết quả xem xét sơ bộ</label>
                     <select value={preliminaryResult} onChange={e => setPreliminaryResult(e.target.value as PreliminaryResult)} className="input w-full">
-                      <option value="valid">✅ Hợp lệ - Chuyển xác nhận</option>
-                      <option value="need_field_check">🏥 Cần kiểm tra thực địa</option>
-                      <option value="invalid">❌ Không hợp lệ - Từ chối</option>
+                      <option value="valid">Hợp lệ - Chuyển xác nhận</option>
+                      <option value="need_field_check">Cần kiểm tra thực địa</option>
+                      <option value="invalid">Không hợp lệ - Từ chối</option>
                     </select>
                   </div>
                   <div>
@@ -1388,8 +1397,8 @@ function ReviewModal({
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Kết quả xác minh thực địa</label>
                     <select value={fieldResult} onChange={e => setFieldResult(e.target.value as FieldVerificationResult)} className="input w-full">
-                      <option value="confirmed_suspected">✅ Xác nhận nghi ngờ - Phù hợp</option>
-                      <option value="not_disease">❌ Không phải bệnh</option>
+                      <option value="confirmed_suspected">Xác nhận nghi ngờ - Phù hợp</option>
+                      <option value="not_disease">Không phải bệnh</option>
                     </select>
                   </div>
                   <div>
@@ -1404,10 +1413,10 @@ function ReviewModal({
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Phân loại chính thức</label>
                     <select value={classification} onChange={e => setClassification(e.target.value as OfficialClassification)} className="input w-full">
-                      <option value="suspected">🟡 Nghi ngờ (Suspected)</option>
-                      <option value="probable">🟠 Có thể (Probable)</option>
-                      <option value="confirmed">🔴 Xác nhận (Confirmed)</option>
-                      <option value="false_alarm">⚪ Báo động giả (False alarm)</option>
+                      <option value="suspected">Nghi ngờ (Suspected)</option>
+                      <option value="probable">Có thể (Probable)</option>
+                      <option value="confirmed">Xác nhận (Confirmed)</option>
+                      <option value="false_alarm">Báo động giả (False alarm)</option>
                     </select>
                   </div>
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -1425,10 +1434,10 @@ function ReviewModal({
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Hành động đóng</label>
                     <select value={closureAction} onChange={e => setClosureAction(e.target.value as ClosureAction)} className="input w-full">
-                      <option value="monitoring">👁️ Theo dõi (Monitoring)</option>
-                      <option value="isolation">🔒 Cách ly (Isolation)</option>
-                      <option value="area_warning">⚠️ Cảnh báo khu vực (Area Warning)</option>
-                      <option value="no_action">❌ Không hành động</option>
+                      <option value="monitoring">Theo dõi (Monitoring)</option>
+                      <option value="isolation">Cách ly (Isolation)</option>
+                      <option value="area_warning">Cảnh báo khu vực (Area Warning)</option>
+                      <option value="no_action">Không hành động</option>
                     </select>
                   </div>
                   <div>
@@ -1451,7 +1460,7 @@ function ReviewModal({
               onClick={handleSubmit}
               className="btn bg-emerald-500 text-white hover:bg-emerald-600"
             >
-              💾 Xác nhận
+              Xác nhận
             </button>
           )}
         </div>
