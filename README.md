@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SafeZone Admin Web
 
-## Getting Started
+Trang quản trị web của SafeZone, dùng để theo dõi tình hình dịch bệnh trên bản đồ, quản lý ca báo cáo, vùng dịch, người dùng, nội dung y tế và thông báo.
 
-First, run the development server:
+## Công nghệ
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js 16 với App Router
+- React 19 và TypeScript
+- Tailwind CSS 4
+- Leaflet và React Leaflet cho bản đồ
+- React Markdown và remark GFM cho nội dung y tế
+
+## Chức năng chính
+
+- Đăng nhập và bảo vệ khu vực quản trị
+- Dashboard bản đồ GIS và lớp nhiệt vùng dịch
+- Thống kê ca bệnh và xu hướng dịch
+- Quản lý báo cáo ca bệnh
+- Quản lý vùng dịch
+- Quản lý người dùng và phân quyền
+- Quản lý bài viết, thông tin y tế, danh mục bệnh
+- Gửi và quản lý thông báo
+- Xem hồ sơ quản trị viên
+
+## Yêu cầu
+
+- Node.js 20 trở lên
+- npm 10 trở lên
+- SafeZone API đang chạy hoặc một API đã triển khai
+
+## Cài đặt
+
+```powershell
+cd apps/admin-web
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Tạo file `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3002/api/v1
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`NEXT_PUBLIC_API_URL` phải trỏ tới đúng base URL của API, bao gồm `/api/v1`.
 
-## Learn More
+## Chạy phát triển
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Mở [http://localhost:3000](http://localhost:3000).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Build và chạy production
 
-## Deploy on Vercel
+```powershell
+npm run build
+npm run start
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Kiểm tra mã nguồn
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+npm run lint
+```
+
+## Cấu trúc thư mục
+
+```text
+src/
+  app/          # Routes, pages và dashboard
+  components/   # Component dùng chung
+  constants/    # Hằng số ứng dụng
+  hooks/        # React hooks dùng chung
+  types/        # Kiểu TypeScript
+public/         # Tài nguyên tĩnh
+```
+
+## Kết nối API
+
+Admin Web gọi API bằng JWT. Người dùng đăng nhập tại `/login`; token được sử dụng cho các request quản trị tiếp theo. API tương ứng nằm trong [apps/api](../api/).
+
+Tài liệu endpoint chi tiết xem tại [API_DOCUMENTATION.md](../../docs/API_DOCUMENTATION.md).
+
+## Triển khai
+
+Có thể triển khai Next.js lên Vercel hoặc nền tảng Node.js tương thích:
+
+1. Đặt `NEXT_PUBLIC_API_URL` trong environment variables.
+2. Chạy `npm run build`.
+3. Dùng `npm run start` cho server production.
+
+Không commit `.env.local` hoặc bất kỳ secret nào vào repository.
+
+## Lưu ý bản đồ
+
+Các tính năng bản đồ cần dữ liệu GIS và API hoạt động. Khi chạy trên thiết bị hoặc trình duyệt khác máy phát triển, không dùng `localhost` trong `NEXT_PUBLIC_API_URL`; hãy dùng hostname/IP mà client có thể truy cập.
+
